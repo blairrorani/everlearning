@@ -7,12 +7,13 @@ craft()->requireEdition(Craft::Pro);
  * The Google Cloud asset source type class. Handles the implementation of Google Cloud as an asset source type in
  * Craft.
  *
- * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
- * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
- * @package   craft.app.assetsourcetypes
- * @since     1.0
+ * @author     Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright  Copyright (c) 2014, Pixel & Tonic, Inc.
+ * @license    http://buildwithcraft.com/license Craft License Agreement
+ * @see        http://buildwithcraft.com
+ * @package    craft.app.assetsourcetypes
+ * @since      1.0
+ * @deprecated This class will most likely be removed in Craft 3.0.
  */
 class GoogleCloudAssetSourceType extends BaseAssetSourceType
 {
@@ -223,7 +224,7 @@ class GoogleCloudAssetSourceType extends BaseAssetSourceType
 
 			$timeModified = new DateTime('@'.$fileInfo['time']);
 
-			if ($fileModel->kind == 'image' && $fileModel->dateModified != $timeModified || !IOHelper::fileExists($targetPath))
+			if ($fileModel->kind == 'image' && ($fileModel->dateModified != $timeModified || !IOHelper::fileExists($targetPath)))
 			{
 				$this->_googleCloud->getObject($settings->bucket, $this->_getPathPrefix().$indexEntryModel->uri, $targetPath);
 				clearstatcache();
