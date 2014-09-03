@@ -1,0 +1,43 @@
+{% extends "_layout-blog" %}
+{% set title = "Creative instructional design blog" %}
+
+{% block content %}
+	<div class="row row-top row-top-left row-blog">
+		<div class="col-sm-8 col-sm-offset-2">
+		<img src="{{ siteUrl }}images/icons/weather.svg" alt="weather icon" class="top-icon-small">
+		<h1 class="hidden-xs">Blog</h1>
+		<h4 class="visible-xs">Blog</h4>
+			<p class="lead">Creative instructional design ideas, opinions, and updates.</p>
+		</div>
+		<!-- <div class="col-sm-8 col-sm-offset-2">
+			<div class="mbl pbm">
+		        <ul class="nav nav-pills">
+		          <li class="active"><a href="{{ siteUrl }}blog">Latest</a></li>
+		          <li><a href="#fakelink">Topics</a></li>
+		          <li><a href="#fakelink">Archive</a></li>
+		        </ul>
+		      </div>
+		</div> -->
+	</div><!-- /row-headings -->
+
+	<div class="row row-middle" id="start-post">
+		<div class="col-sm-8 col-sm-offset-2 col-md-6 col-md-offset-3">
+
+			<article style="margin-bottom: 90px;">
+			<div class="double-heading">
+				<h3>{{ entry.title }}</h3>
+				<p><em>{{ entry.author.fullName }} posted this on {{ entry.postDate.format('d F Y') }}</em><span class="label label-danger" style="margin-left: 15px;">{{ entry.blogTopic.first }}</span></p>
+
+			</div><!-- /double-heading -->
+			
+				{{ entry.body }}
+			</article>
+
+			{% include "includes/_next-blog-post.html" %}
+
+		</div>
+	</div>
+
+  	{% include "includes/_free-lessons.html" %}
+
+{% endblock %}

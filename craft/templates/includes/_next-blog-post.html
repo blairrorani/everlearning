@@ -1,0 +1,18 @@
+{% set params = craft.entries.section('blog') %}
+
+{# Get the prev/next elements #}
+{% set prevEntry = entry.getPrev(params) %}
+{% set nextEntry = entry.getNext(params) %}
+
+{# And make sure to only output the links if the element exists #}
+	
+			{% if nextEntry %}
+			<a href="{{ nextEntry.url }}">
+				<span class="fui-arrow-left"></span> OLDER 
+			</a>
+			{% endif %}
+
+			{% if prevEntry %}
+			<a href="{{ prevEntry.url }}" class="pull-right">NEWER <span class="fui-arrow-right"></span></a>
+			{% endif %}
+			

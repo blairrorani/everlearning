@@ -1,0 +1,50 @@
+{% extends "_layout" %}
+{% set title = "Creative instructional design for change projects in Australia" %}
+
+{% block content %}
+
+	<div class="row" style="margin-bottom: 90px; text-align: center;">
+		<div class="col-md-8 col-md-offset-2">
+			<h1 class="hidden-xs">Creative instructional design for change projects</h1>
+			<h3 class="visible-xs">Creative instructional design for change projects</h3>
+			<p class="lead">We build training and comms that work better (and look cooler).</p>
+			<p><a href="#seeHow" class="btn btn-lg btn-primary btn-embossed">See how</a></p>
+		</div>
+	</div>
+
+	<div class="row" style="margin-bottom: 60px; padding-top: 30px;" id="seeHow">
+		<div class="col-md-8 col-md-offset-2">
+			<div class="col-sm-6" style="text-align: center;">
+				<img src="{{ siteUrl }}/images/icons/video.svg" alt="rocket icon" width="250px">
+			</div>
+			<div class="col-sm-6" style="padding-top: 15px;">
+				<h4>Make your communication more engaging</h4>
+				<p>Transform wordy emails, liven up team briefings, clarify complex information, and engage stakeholders with animated videos, visual slide packs, icons, and infographics.</p>
+				<p><a href="{{ siteUrl }}communication">Show me more <span class="fui-arrow-right"></span></a></p>
+			</div>
+		</div>
+	</div>
+
+	<div class="row" style="margin-bottom: 60px;">
+		<div class="col-md-8 col-md-offset-2">
+			<div class="col-sm-6 pull-right hidden-xs" style="text-align: center;">
+				<img src="{{ siteUrl }}images/icons/responsive.svg" alt="" width="250px">
+			</div>
+
+			<div class="col-sm-6  visible-xs" style="text-align: center;">
+				<img src="{{ siteUrl }}images/icons/responsive.svg" alt="" width="250px">
+			</div>
+
+			<div class="col-sm-6" style="padding-top: 15px;">
+				<h4>Make your training more effective</h4>
+				<p>Turn mind-numbing slides, click-and-read elearning, and big fat manuals, into challenges, levels, hands-on activities, digital tools, and visual job-aids.</p>
+				<p><a href="{{ siteUrl }}training">Sounds interesting <span class="fui-arrow-right"></span></a></p>
+			</div>
+		</div>
+	</div>
+
+  	{% include "includes/_free-lessons.html" %}
+
+	</div>
+
+{% endblock %}

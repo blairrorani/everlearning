@@ -1,0 +1,33 @@
+{% extends "_layout-academy" %}
+{% set title = "Free creative instructional design lessons" %}
+
+{% block content %}
+	<div class="row row-top row-top-left row-inverse">
+		<div class="col-sm-8 col-sm-offset-2">
+		<img src="{{ siteUrl }}images/icons/pencil.svg" alt="pencil icon" class="top-icon-small">
+			{% include "includes/_lessons-subnav.html" %}
+		<h2 class="hidden-xs">Creative instructional design lessons</h2>
+		<h4 class="visible-xs">Creative instructional design lessons</h4>
+			<p class="lead">Delivered to your inbox weekly.</p>
+		</div>
+
+	</div><!-- /row-headings -->
+
+	<div class="row row-middle" id="continue">
+		<div class="col-sm-8 col-sm-offset-2 col-md-6 col-md-offset-3">
+
+			<article style="margin-bottom: 90px;">
+			<div class="double-heading">
+				<p class="lead">Lesson {{ entry.lessonNumber }}</p>
+				<h3>{{ entry.title }}</h3>
+			</div><!-- /double-heading -->
+			
+				{{ entry.body }}
+			</article>
+
+			{% include "includes/_next-lesson.html" %}
+
+		</div>
+	</div>
+    {% include "includes/_free-lessons-signup.html" %}
+{% endblock %}

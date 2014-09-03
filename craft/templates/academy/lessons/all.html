@@ -1,0 +1,41 @@
+{% extends "_layout-academy" %}
+{% set title = "Free creative instructional design lessons" %}
+{% set thisSubnav = "all" %}
+
+{% block content %}
+
+	<div class="row row-top row-top-left row-inverse">
+		<div class="col-sm-8 col-sm-offset-2">
+		<img src="{{ siteUrl }}images/icons/pencil.svg" alt="pencil icon" class="top-icon top-icon-small">
+		{% include "includes/_lessons-subnav.html" %}
+		<h2 class="hidden-xs">Creative instructional design lessons</h2>
+		<h3 class="visible-xs">Creative instructional design lessons</h3>
+		<p class="lead">Delivered to your inbox weekly.</p>
+		</div>
+
+	</div><!-- /row-headings -->
+
+
+	<div class="row row-middle">
+		<div class="col-sm-6 col-sm-offset-3">
+			
+			<article>
+				<div class="double-heading">
+					<p class="lead">Browse</p>
+					<h3>All lessons</h3>
+				</div><!-- /double-heading -->
+			</article>
+
+			{% for entry in craft.entries.section('lessons') %}
+			<ul>
+				<li><a href="{{ entry.url }}"><strong>Lesson {{ entry.lessonNumber }}:</strong> {{ entry.title }}</a></li>
+			</ul>
+			{% endfor %}
+		</div>
+	</div>
+
+	
+  	
+  	{% include "includes/_free-lessons-signup.html" %}
+
+{% endblock %}

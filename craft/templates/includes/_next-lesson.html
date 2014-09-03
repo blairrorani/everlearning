@@ -1,0 +1,23 @@
+{% set params = craft.entries.section('lessons') %}
+
+{# Get the prev/next elements #}
+{% set prevEntry = entry.getPrev(params) %}
+{% set nextEntry = entry.getNext(params) %}
+
+{# And make sure to only output the links if the element exists #}
+		
+			<div class="col-xs-6">
+			{% if nextEntry %}
+			<a href="{{ nextEntry.url }}">
+				<span class="fui-arrow-left"></span> LESSON {{ nextEntry.lessonNumber}} <br> {{ nextEntry.title }}
+			</a>
+			{% endif %}
+			</div>
+
+			<div class="col-xs-6">
+			{% if prevEntry %}
+			<a href="{{ prevEntry.url }}" class="pull-right" style="text-align: right;">
+				LESSON {{ prevEntry.lessonNumber}}  <span class="fui-arrow-right"></span> <br> {{ prevEntry.title }}
+			</a>
+			{% endif %}
+			</div>
