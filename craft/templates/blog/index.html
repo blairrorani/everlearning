@@ -5,7 +5,7 @@
 
 	<div class="row row-top row-top-left row-blog">
 		<div class="col-sm-8 col-sm-offset-2">
-		<img src="{{ siteUrl }}ficons/s/weather.svg" alt="weather icon" class="top-icon top-icon-small">
+		<img src="{{ siteUrl }}ficons/s/donut.svg" alt="donut icon" class="top-icon top-icon-small">
 		<h2 class="hidden-xs">Blog</h2>
 		<h4 class="visible-xs">Blog</h4>
 			<p class="lead">Creative instructional design ideas, opinions, and updates.</p>
@@ -13,7 +13,7 @@
 	</div><!-- /row-headings -->
 
 {% for entry in craft.entries.section('blog').limit('1') %}
-	
+
 	<div class="row row-middle" id="start-post">
 		<div class="col-sm-8 col-sm-offset-2 col-md-6 col-md-offset-3">
 
@@ -23,10 +23,10 @@
 				<h3><a href="{{ entry.url }}">{{ entry.title }}</a></h3>
 				<p><em>{{ entry.author.fullName }} posted this on {{ entry.postDate.format('d F Y') }} </em><span class="label label-important" style="margin-left: 15px;">{{ entry.blogTopic.first }}</span></p>
 			</div><!-- /double-heading -->
-			
+
 				{{ entry.body }}
 			</article>
-			
+
 			{% include "includes/_next-blog-post.html" %}
 
 		</div>
