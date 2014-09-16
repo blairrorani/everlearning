@@ -1,25 +1,26 @@
 {% extends "_layout-academy" %}
-{% set title = "Learn creative instructional design skills" %}
+{% set title = "Creative instructional design lessons and courses" %}
 
 {% block content %}
 <div class="row row-top row-inverse">
 	<div class="col-md-8 col-md-offset-2">
 		<div style="text-align: center;">
-			<img src="{{ siteUrl }}ficons/s/pencils.svg" alt="pencils icon" width="250px">
+			<img src="{{ siteUrl }}ficons/s/pencils.svg" alt="pencils icon" width="200px">
 			<h2 class="hidden-xs">Learn creative instructional design</h2>
 			<h3 class="visible-xs">Learn creative instructional design</h3>
-			<p class="lead">To communicate and train in the new world of work you&#8217;ll need a whole new set of skills.</p>
+			<p class="lead">Principles and methods for building instructional products that businesses need and learners love.</p>
 		</div>
 	</div>
 </div>
+
+{% include "includes/_free-lessons-signup.html" %}
+
+<!-- curriculum block -->
 <div class="row tan">
 	<div class="col-md-8 col-md-offset-2">
-		<div class="col-sm-12" style="text-align: center; margin-bottom: 30px; padding-top: 90px;">
-			<p class="lead" style="margin-bottom: 0;">We call this skill set</p>
-			<h3 style="margin-top: 10px;">Creative instructional design</h3>
-		</div>
-		<div class="col-sm-8 col-sm-offset-2" style="margin-bottom: 30px; text-align: center;">
-			<p>Learn principles and methodologies for building instructional products that learners love to use.</p>
+		<div class="col-sm-12" style="text-align: center; padding-top: 90px;">
+			<h3 style="margin-top: 10px;">Our creative instructional design curriculum</h3>
+			<p class="lead">You'll need a new set of skills to communicate and train in the new world of work.<p>
 		</div>
 
 		{% include "includes/_five-icons.html" %}
@@ -27,6 +28,5 @@
 	</div>
 </div>
 
-{% include "includes/_free-lessons-signup.html" %}
 
 {% endblock %}
