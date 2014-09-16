@@ -156,6 +156,8 @@ ul.gridstyle {
 	}
 	ul.gridstyle li {
 		float: left;
+	}
+	ul.gridstyle li {
 		width: 50%;
 		margin-bottom: 30px;
 	}
@@ -170,14 +172,19 @@ ul.gridstyle {
 	}
 }
 
+@media (min-width: 768px) and (max-width: 992px) {
+	ul.gridstyle li {
+		width: 33%;
+	}
+}
+
 @media (min-width: 992px) and (max-width: 1200px) {
 
 	ul.gridstyle li {
-		float: left;
 		width: 33%;
 	}
 
 }
-/*
-@media (min-width: @screen-md-min) and (max-width: @screen-md-max) { ... }
-@media (min-width: @screen-lg-min) { ... }*/
+
+
+/*@media (min-width: @screen-lg-min) { ... }*/
