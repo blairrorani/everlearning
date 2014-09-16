@@ -132,7 +132,11 @@ class TemplateCacheService extends BaseApplicationComponent
 	 */
 	public function startTemplateCache($key)
 	{
-		$this->_cacheCriteria[$key] = array();
+		if (craft()->config->get('cacheElementQueries'))
+		{
+			$this->_cacheCriteria[$key] = array();
+		}
+
 		$this->_cacheElementIds[$key] = array();
 	}
 
@@ -388,7 +392,7 @@ class TemplateCacheService extends BaseApplicationComponent
 			return false;
 		}
 
-		if ($deleteQueryCaches)
+		if ($deleteQueryCaches && craft()->config->get('cacheElementQueries'))
 		{
 			// If there are any pending DeleteStaleTemplateCaches tasks, just append this element to it
 			$task = craft()->tasks->getNextPendingTask('DeleteStaleTemplateCaches');

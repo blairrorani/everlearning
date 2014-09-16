@@ -26,6 +26,11 @@ class AssetFileModel extends BaseElementModel
 	 */
 	private $_transform;
 
+	/**
+	 * @var string
+	 */
+	private $_transformSource = '';
+
 	// Public Methods
 	// =========================================================================
 
@@ -341,6 +346,29 @@ class AssetFileModel extends BaseElementModel
 		));
 	}
 
+	/**
+	 * Set a source to use for transforms for this Assets File.
+	 *
+	 * @param $uri
+	 */
+	public function setTransformSource($uri)
+	{
+		$this->_transformSource = $uri;
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getTransformSource()
+	{
+		if (!$this->_transformSource)
+		{
+			craft()->assetTransforms->getLocalImageSource($this);
+		}
+
+		return $this->_transformSource;
+	}
+
 	// Private Methods
 	// =========================================================================
 
@@ -369,6 +397,7 @@ class AssetFileModel extends BaseElementModel
 	 *
 	 * @param $dimension 'height' or 'width'
 	 * @param $transform
+	 *
 	 * @return null|float|mixed
 	 */
 	private function _getDimension($dimension, $transform)

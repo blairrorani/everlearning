@@ -71,13 +71,16 @@ class UpdateHelper
 	}
 
 	/**
+	 * Rolls back any changes made to the DB during the update process.
+	 *
 	 * @param $backupPath
+	 *
 	 * @return null
 	 */
 	public static function rollBackDatabaseChanges($backupPath)
 	{
 		$dbBackup = new DbBackup();
-		$fullBackupPath= craft()->path->getDbBackupPath().$backupPath.'.sql';
+		$fullBackupPath = craft()->path->getDbBackupPath().$backupPath.'.sql';
 		$dbBackup->restore($fullBackupPath);
 	}
 
@@ -211,7 +214,10 @@ class UpdateHelper
 	}
 
 	/**
+	 * Return true if line is a manifest migration line.
+	 *
 	 * @param $line
+	 *
 	 * @return bool
 	 */
 	public static function isManifestMigrationLine($line)

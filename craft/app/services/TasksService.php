@@ -31,6 +31,11 @@ class TasksService extends BaseApplicationComponent
 	 */
 	private $_runningTask;
 
+	/**
+	 * @var
+	 */
+	private $_listeningForRequestEnd = false;
+
 	// Public Methods
 	// =========================================================================
 
@@ -53,6 +58,13 @@ class TasksService extends BaseApplicationComponent
 		$task->settings = $settings;
 		$task->parentId = $parentId;
 		$this->saveTask($task);
+
+		if (!$this->_listeningForRequestEnd && !$this->isTaskRunning())
+		{
+			// Turn this request into a runner once everything else is done
+			craft()->attachEventHandler('onEndRequest', array($this, 'closeAndRun'));
+			$this->_listeningForRequestEnd = true;
+		}
 
 		return $task;
 	}
@@ -112,6 +124,27 @@ class TasksService extends BaseApplicationComponent
 		{
 			$task->addErrors($taskRecord->getErrors());
 			return false;
+		}
+	}
+
+	/**
+	 * Closes the connection with the client and turns the request into a task runner.
+	 *
+	 * @return null
+	 */
+	public function closeAndRun()
+	{
+		// Make sure a future call to craft()->end() dosen't trigger this a second time
+		craft()->detachEventHandler('onEndRequest', array($this, 'closeAndRun'));
+
+		// Make sure nothing has been output to the browser yet
+		if (!headers_sent())
+		{
+			// Close the client connection
+			craft()->request->close();
+
+			// Run any pending tasks
+			$this->runPendingTasks();
 		}
 	}
 

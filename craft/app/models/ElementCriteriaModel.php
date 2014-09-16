@@ -29,12 +29,12 @@ class ElementCriteriaModel extends BaseModel implements \Countable
 	/**
 	 * @var
 	 */
-	private $_cachedElements;
+	private $_matchedElements;
 
 	/**
 	 * @var
 	 */
-	private $_cachedElementsAtOffsets;
+	private $_matchedElementsAtOffsets;
 
 	/**
 	 * @var
@@ -87,7 +87,7 @@ class ElementCriteriaModel extends BaseModel implements \Countable
 	{
 		if (is_numeric($offset))
 		{
-			return ($this->findElementAtOffset($offset) !== null);
+			return ($this->nth($offset) !== null);
 		}
 		else
 		{
@@ -106,7 +106,7 @@ class ElementCriteriaModel extends BaseModel implements \Countable
 	{
 		if (is_numeric($offset))
 		{
-			return $this->findElementAtOffset($offset);
+			return $this->nth($offset);
 		}
 		else
 		{
@@ -126,7 +126,7 @@ class ElementCriteriaModel extends BaseModel implements \Countable
 	{
 		if (is_numeric($offset) && $item instanceof BaseElementModel)
 		{
-			$this->_cachedElementsAtOffsets[$offset] = $item;
+			$this->_matchedElementsAtOffsets[$offset] = $item;
 		}
 		else
 		{
@@ -145,7 +145,7 @@ class ElementCriteriaModel extends BaseModel implements \Countable
 	{
 		if (is_numeric($offset))
 		{
-			unset($this->_cachedElementsAtOffsets[$offset]);
+			unset($this->_matchedElementsAtOffsets[$offset]);
 		}
 		else
 		{
@@ -173,12 +173,20 @@ class ElementCriteriaModel extends BaseModel implements \Countable
 	 */
 	public function setAttribute($name, $value)
 	{
+		// If this is an attribute, and the value is not actually changing, just return true so the matched elements
+		// don't get cleared.
+		if (in_array($name, $this->attributeNames()) && $this->getAttribute($name) === $value)
+		{
+			return true;
+		}
+
 		if (parent::setAttribute($name, $value))
 		{
-			$this->_cachedElements = null;
-			$this->_cachedElementsAtOffsets = null;
+			$this->_matchedElements = null;
+			$this->_matchedElementsAtOffsets = null;
 			$this->_cachedIds = null;
 			$this->_cachedTotal = null;
+
 			return true;
 		}
 		else
@@ -217,15 +225,16 @@ class ElementCriteriaModel extends BaseModel implements \Countable
 	public function setLanguage($locale)
 	{
 		$this->setAttribute('locale', $locale);
+
 		return $this;
 	}
 
 	/**
 	 * Returns all elements that match the criteria.
 	 *
-	 * @param array|null $attributes
+	 * @param array $attributes Any last-minute parameters that should be added.
 	 *
-	 * @return array
+	 * @return array The matched elements.
 	 */
 	public function find($attributes = null)
 	{
@@ -233,33 +242,25 @@ class ElementCriteriaModel extends BaseModel implements \Countable
 
 		$this->_includeInTemplateCaches();
 
-		if (!isset($this->_cachedElements))
+		if (!isset($this->_matchedElements))
 		{
-			$this->_cachedElements = craft()->elements->findElements($this);
-
-			// Cache 'em
-			$offset = $this->offset;
-
-			foreach ($this->_cachedElements as $element)
-			{
-				$this->_cachedElementsAtOffsets[$offset] = $element;
-				$offset++;
-			}
+			$elements = craft()->elements->findElements($this);
+			$this->setMatchedElements($elements);
 		}
 
-		return $this->_cachedElements;
+		return $this->_matchedElements;
 	}
 
 	/**
 	 * Returns an element at a specific offset.
 	 *
-	 * @param int $offset
+	 * @param int $offset The offset.
 	 *
-	 * @return BaseElementModel|null
+	 * @return BaseElementModel|null The element, if there is one.
 	 */
-	public function findElementAtOffset($offset)
+	public function nth($offset)
 	{
-		if (!isset($this->_cachedElementsAtOffsets) || !array_key_exists($offset, $this->_cachedElementsAtOffsets))
+		if (!isset($this->_matchedElementsAtOffsets) || !array_key_exists($offset, $this->_matchedElementsAtOffsets))
 		{
 			$criteria = new ElementCriteriaModel($this->getAttributes(), $this->_elementType);
 			$criteria->offset = $offset;
@@ -268,15 +269,15 @@ class ElementCriteriaModel extends BaseModel implements \Countable
 
 			if ($elements)
 			{
-				$this->_cachedElementsAtOffsets[$offset] = $elements[0];
+				$this->_matchedElementsAtOffsets[$offset] = $elements[0];
 			}
 			else
 			{
-				$this->_cachedElementsAtOffsets[$offset] = null;
+				$this->_matchedElementsAtOffsets[$offset] = null;
 			}
 		}
 
-		return $this->_cachedElementsAtOffsets[$offset];
+		return $this->_matchedElementsAtOffsets[$offset];
 	}
 
 	/**
@@ -290,7 +291,7 @@ class ElementCriteriaModel extends BaseModel implements \Countable
 	{
 		$this->setAttributes($attributes);
 
-		return $this->findElementAtOffset(0);
+		return $this->nth(0);
 	}
 
 	/**
@@ -308,7 +309,7 @@ class ElementCriteriaModel extends BaseModel implements \Countable
 
 		if ($total)
 		{
-			return $this->findElementAtOffset($total-1);
+			return $this->nth($total-1);
 		}
 	}
 
@@ -362,7 +363,44 @@ class ElementCriteriaModel extends BaseModel implements \Countable
 	public function copy()
 	{
 		$class = get_class($this);
+
 		return new $class($this->getAttributes(), $this->_elementType);
+	}
+
+	/**
+	 * Stores the matched elements to avoid redundant DB queries.
+	 *
+	 * @param array $elements The matched elements.
+	 *
+	 * @return null
+	 */
+	public function setMatchedElements($elements)
+	{
+		$this->_matchedElements = $elements;
+
+		// Store them by offset, too
+		$offset = $this->offset;
+
+		foreach ($this->_matchedElements as $element)
+		{
+			$this->_matchedElementsAtOffsets[$offset] = $element;
+			$offset++;
+		}
+	}
+
+	/**
+	 * Returns an element at a specific offset.
+	 *
+	 * @param int $offset
+	 *
+	 * @deprecated Deprecated in 2.2. Use {@link nth()} instead.
+	 * @return BaseElementModel|null
+	 *
+	 */
+	public function findElementAtOffset($offset)
+	{
+		craft()->deprecator->log('ElementCriteriaModel::findElementAtOffset()', 'ElementCriteriaModel::findElementAtOffset() has been deprecated. Use nth() instead.');
+		return $this->nth($offset);
 	}
 
 	// Protected Methods
@@ -374,40 +412,42 @@ class ElementCriteriaModel extends BaseModel implements \Countable
 	protected function defineAttributes()
 	{
 		$attributes = array(
-			'ancestorDist'   => AttributeType::Number,
-			'ancestorOf'     => AttributeType::Mixed,
-			'archived'       => AttributeType::Bool,
-			'dateCreated'    => AttributeType::Mixed,
-			'dateUpdated'    => AttributeType::Mixed,
-			'descendantDist' => AttributeType::Number,
-			'descendantOf'   => AttributeType::Mixed,
-			'fixedOrder'     => AttributeType::Bool,
-			'id'             => AttributeType::Number,
-			'indexBy'        => AttributeType::String,
-			'level'          => AttributeType::Number,
-			'limit'          => array(AttributeType::Number, 'default' => 100),
-			'locale'         => AttributeType::Locale,
-			'localeEnabled'  => array(AttributeType::Bool, 'default' => true),
-			'nextSiblingOf'  => AttributeType::Mixed,
-			'offset'         => array(AttributeType::Number, 'default' => 0),
-			'order'          => array(AttributeType::String, 'default' => 'elements.dateCreated desc'),
-			'prevSiblingOf'  => AttributeType::Mixed,
-			'relatedTo'      => AttributeType::Mixed,
-			'ref'            => AttributeType::String,
-			'search'         => AttributeType::String,
-			'siblingOf'      => AttributeType::Mixed,
-			'slug'           => AttributeType::String,
-			'status'         => array(AttributeType::String, 'default' => BaseElementModel::ENABLED),
-			'title'          => AttributeType::String,
-			'uri'            => AttributeType::String,
-			'kind'           => AttributeType::Mixed,
+			'ancestorDist'     => AttributeType::Number,
+			'ancestorOf'       => AttributeType::Mixed,
+			'archived'         => AttributeType::Bool,
+			'dateCreated'      => AttributeType::Mixed,
+			'dateUpdated'      => AttributeType::Mixed,
+			'descendantDist'   => AttributeType::Number,
+			'descendantOf'     => AttributeType::Mixed,
+			'fixedOrder'       => AttributeType::Bool,
+			'id'               => AttributeType::Number,
+			'indexBy'          => AttributeType::String,
+			'level'            => AttributeType::Number,
+			'limit'            => array(AttributeType::Number, 'default' => 100),
+			'locale'           => AttributeType::Locale,
+			'localeEnabled'    => array(AttributeType::Bool, 'default' => true),
+			'nextSiblingOf'    => AttributeType::Mixed,
+			'offset'           => array(AttributeType::Number, 'default' => 0),
+			'order'            => array(AttributeType::String, 'default' => 'elements.dateCreated desc'),
+			'positionedAfter'  => AttributeType::Mixed,
+			'positionedBefore' => AttributeType::Mixed,
+			'prevSiblingOf'    => AttributeType::Mixed,
+			'relatedTo'        => AttributeType::Mixed,
+			'ref'              => AttributeType::String,
+			'search'           => AttributeType::String,
+			'siblingOf'        => AttributeType::Mixed,
+			'slug'             => AttributeType::String,
+			'status'           => array(AttributeType::String, 'default' => BaseElementModel::ENABLED),
+			'title'            => AttributeType::String,
+			'uri'              => AttributeType::String,
+			'kind'             => AttributeType::Mixed,
 
 			// TODO: Deprecated
-			'childField'     => AttributeType::String,
-			'childOf'        => AttributeType::Mixed,
-			'depth'          => AttributeType::Number,
-			'parentField'    => AttributeType::String,
-			'parentOf'       => AttributeType::Mixed,
+			'childField'       => AttributeType::String,
+			'childOf'          => AttributeType::Mixed,
+			'depth'            => AttributeType::Number,
+			'parentField'      => AttributeType::String,
+			'parentOf'         => AttributeType::Mixed,
 		);
 
 		// Mix in any custom attributes defined by the element type

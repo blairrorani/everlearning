@@ -159,11 +159,11 @@ class HttpRequestVariable
 	}
 
 	/**
-	 * Returns a {@link \CHttpCookie} if it exists, otherwise, null.
+	 * Returns a {@link HttpCookie} if it exists, otherwise, null.
 	 *
 	 * @param $name
 	 *
-	 * @return CHttpCookie|null
+	 * @return HttpCookie|null
 	 */
 	public function getCookie($name)
 	{
@@ -323,6 +323,18 @@ class HttpRequestVariable
 	public function getPort()
 	{
 		return craft()->request->getPort();
+	}
+
+	/**
+	 * Returns the random token used to perform CSRF validation.
+	 *
+	 * The token will be read from cookie first. If not found, a new token will be generated.
+	 *
+	 * @return string The random token for CSRF validation.
+	 */
+	public function getCsrfToken()
+	{
+		return craft()->request->getCsrfToken();
 	}
 
 }

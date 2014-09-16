@@ -38,7 +38,9 @@ class Cache_TokenParser extends \Twig_TokenParser
 
 		$nodes = array(
 			'expiration' => null,
+			'conditions' => null,
 			'ignoreConditions' => null,
+			'key' => null,
 			'body' => null,
 		);
 
@@ -54,6 +56,13 @@ class Cache_TokenParser extends \Twig_TokenParser
 			$stream->next();
 		}
 
+		if ($stream->test(\Twig_Token::NAME_TYPE, 'using'))
+		{
+			$stream->next();
+			$stream->expect(\Twig_Token::NAME_TYPE, 'key');
+			$nodes['key'] = $this->parser->getExpressionParser()->parseExpression();
+		}
+
 		if ($stream->test(\Twig_Token::NAME_TYPE, 'for'))
 		{
 			$stream->next();
@@ -66,7 +75,12 @@ class Cache_TokenParser extends \Twig_TokenParser
 			$nodes['expiration'] = $this->parser->getExpressionParser()->parseExpression();
 		}
 
-		if ($stream->test(\Twig_Token::NAME_TYPE, 'unless'))
+		if ($stream->test(\Twig_Token::NAME_TYPE, 'if'))
+		{
+		    $stream->next();
+		    $nodes['conditions'] = $this->parser->getExpressionParser()->parseExpression();
+		}
+		else if ($stream->test(\Twig_Token::NAME_TYPE, 'unless'))
 		{
 		    $stream->next();
 		    $nodes['ignoreConditions'] = $this->parser->getExpressionParser()->parseExpression();

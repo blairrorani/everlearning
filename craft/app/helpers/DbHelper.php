@@ -248,23 +248,13 @@ class DbHelper
 	 *
 	 * @param mixed $table The table name or an array of table names
 	 *
+	 * @deprecated Deprecated in Craft 2.2. Use {@link DbCommand::addTablePrefix() craft()->db->addTablePrefix()} instead.
 	 * @return mixed The modified table name(s)
 	 */
 	public static function addTablePrefix($table)
 	{
-		if (is_array($table))
-		{
-			foreach ($table as $key => $t)
-			{
-				$table[$key] = static::addTablePrefix($t);
-			}
-		}
-		else
-		{
-			$table = preg_replace('/^\w+/', craft()->db->tablePrefix.'\0', $table);
-		}
-
-		return $table;
+		// TODO: Add deprecation log in 3.0
+		return craft()->db->addTablePrefix($table);
 	}
 
 	/**
@@ -273,13 +263,13 @@ class DbHelper
 	 * @param string       $table
 	 * @param string|array $columns
 	 *
+	 * @deprecated Deprecated in Craft 2.2. Use {@link DbCommand::getForeignKeyName() craft()->db->getForeignKeyName()} instead.
 	 * @return string
 	 */
 	public static function getForeignKeyName($table, $columns)
 	{
-		$columns = ArrayHelper::stringToArray($columns);
-		$name = craft()->db->tablePrefix.$table.'_'.implode('_', $columns).'_fk';
-		return static::normalizeDbObjectName($name);
+		// TODO: Add deprecation log in 3.0
+		return craft()->db->getForeignKeyName($table, $columns);
 	}
 
 	/**
@@ -289,14 +279,14 @@ class DbHelper
 	 * @param string|array $columns
 	 * @param bool         $unique
 	 *
+	 * @deprecated Deprecated in Craft 2.2. Use {@link DbCommand::getIndexName() craft()->db->getIndexName()} instead.
 	 * @return string
 	 */
 	public static function getIndexName($table, $columns, $unique = false)
 	{
-		$columns = ArrayHelper::stringToArray($columns);
-		$name = craft()->db->tablePrefix.$table.'_'.implode('_', $columns).($unique ? '_unq' : '').'_idx';
+		// TODO: Add deprecation log in 3.0
+		return craft()->db->getIndexName($table, $columns, $unique);
 
-		return static::normalizeDbObjectName($name);
 	}
 
 	/**
@@ -305,13 +295,13 @@ class DbHelper
 	 * @param string       $table
 	 * @param string|array $columns
 	 *
+	 * @deprecated Deprecated in Craft 2.2. Use {@link DbCommand::getPrimaryKeyName() craft()->db->getPrimaryKeyName()} instead.
 	 * @return string
 	 */
 	public static function getPrimaryKeyName($table, $columns)
 	{
-		$columns = ArrayHelper::stringToArray($columns);
-		$name = craft()->db->tablePrefix.$table.'_'.implode('_', $columns).'_pk';
-		return static::normalizeDbObjectName($name);
+		// TODO: Add deprecation log in 3.0
+		return craft()->db->getPrimaryKeyName($table, $columns);
 	}
 
 	/**
@@ -319,44 +309,13 @@ class DbHelper
 	 *
 	 * @param string $name
 	 *
+	 * @deprecated Deprecated in Craft 2.2. Use {@link DbCommand::trimObjectName() craft()->db->trimObjectName()} instead.
 	 * @return string
 	 */
 	public static function normalizeDbObjectName($name)
 	{
-		// TODO: MySQL specific
-		// MySQL indexes can't be more than 64 characters (see http://dev.mysql.com/doc/refman/5.0/en/identifiers.html)
-		$maxLength = 64;
-
-		$name = trim($name, '_');
-		$nameLength = mb_strlen($name);
-
-		if ($nameLength > $maxLength)
-		{
-			$parts = array_filter(explode('_', $name));
-			$totalParts = count($parts);
-			$totalLetters = $nameLength - ($totalParts-1);
-			$maxLetters = $maxLength - ($totalParts-1);
-
-			// Consecutive underscores could have put this name over the top
-			if ($totalLetters > $maxLetters)
-			{
-				foreach ($parts as $i => $part)
-				{
-					$newLength = round($maxLetters * mb_strlen($part) / $totalLetters);
-					$parts[$i] = mb_substr($part, 0, $newLength);
-				}
-			}
-
-			$name = implode('_', $parts);
-
-			// Just to be safe
-			if (mb_strlen($name) > $maxLength)
-			{
-				$name = mb_substr($name, 0, $maxLength);
-			}
-		}
-
-		return $name;
+		// TODO: Add deprecation log in 3.0
+		return craft()->db->trimObjectName($name);
 	}
 
 	/**
@@ -365,8 +324,8 @@ class DbHelper
 	public static function getAuditColumnConfig()
 	{
 		return array(
-			'dateCreated' => array('column' => ColumnType::DateTime,  'required' => true),
-			'dateUpdated' => array('column' => ColumnType::DateTime,  'required' => true),
+			'dateCreated' => array('column' => ColumnType::DateTime, 'required' => true),
+			'dateUpdated' => array('column' => ColumnType::DateTime, 'required' => true),
 			'uid'         => array('column' => ColumnType::Char, 'length' => 36, 'required' => true, 'default' => 0)
 		);
 	}

@@ -14,25 +14,80 @@ namespace Craft;
  */
 class HeaderHelper
 {
+	// Properties
+	// =========================================================================
+
+	/**
+	 * @var
+	 */
+	private static $_mimeType;
+
 	// Public Methods
 	// =========================================================================
 
 	/**
-	 * @param $extension
+	 * Returns the MIME type that is going to be included in the response via
+	 * the Content-Type header, whether that has been set explicitly in the PHP
+	 * code or if it's going to be based on the default_mimetype setting in php.ini.
 	 *
-	 * @throws Exception
+	 * @return string
+	 */
+	public static function getMimeType()
+	{
+		if (!isset(static::$_mimeType))
+		{
+			// Has it been explicitly set?
+			static::$_mimeType = static::getHeader('Content-Type');
+
+			if (static::$_mimeType !== null)
+			{
+				// Drop the charset, if it's there
+				if (($pos = strpos(static::$_mimeType, ';')) !== false)
+				{
+					static::$_mimeType = rtrim(substr(static::$_mimeType, 0, $pos));
+				}
+			}
+			else
+			{
+				// Then it's whatever's in php.ini
+				static::$_mimeType = ini_get('default_mimetype');
+			}
+		}
+
+		return static::$_mimeType;
+	}
+
+	/**
+	 * Sets the Content-Type header based on a file extension.
+	 *
+	 * @param string $extension
+	 *
+	 * @return bool Whether setting the header was successful.
 	 */
 	public static function setContentTypeByExtension($extension)
 	{
 		$extension = strtolower($extension);
 		$mimeTypes = require(Craft::getPathOfAlias('app.framework.utils.mimeTypes').'.php');
 
-		if (!array_key_exists($extension, $mimeTypes))
+		if (!isset($mimeTypes[$extension]))
 		{
 			Craft::log('Tried to set the header mime type for the extension '.$extension.', but could not find in the mimeTypes list.', LogLevel::Warning);
+			return false;
 		}
 
-		static::setHeader(array('Content-Type' => $mimeTypes[$extension].'; charset=utf-8'));
+		$mimeType = $mimeTypes[$extension];
+
+		if (static::setHeader(array('Content-Type' => $mimeType.'; charset=utf-8')))
+		{
+			// Save the MIME type for getMimeType()
+			static::$_mimeType = $mimeType;
+
+			return true;
+		}
+		else
+		{
+			return false;
+		}
 	}
 
 	/**
@@ -156,37 +211,39 @@ class HeaderHelper
 	/**
 	 * Checks whether a header is currently set or not.
 	 *
-	 * @param $key
+	 * @param string $name
 	 *
 	 * @return bool
 	 */
-	public static function isHeaderSet($key)
+	public static function isHeaderSet($name)
 	{
-		// Grab existing headers.
-		$currentHeaders = headers_list();
-		$exists = false;
+		return (static::getHeader($name) !== null);
+	}
 
-		foreach ($currentHeaders as $currentHeader)
+	/**
+	 * Returns the value of a given header, if it has been set.
+	 *
+	 * @param string $name The name of the header.
+	 *
+	 * @return string|null The value of the header, or `null` if it hasn’t been set.
+	 */
+	public static function getHeader($name)
+	{
+		// Normalize to lowercase
+		$name = strtolower($name);
+
+		// Loop through each of the headers
+		foreach (headers_list() as $header)
 		{
-			// See if the existing header is in the "key: value" format.
-			if (strpos($currentHeader, ':') !== false)
-			{
-				$currentParts = explode(':', $currentHeader);
-				$currentKey = trim($currentParts[0]);
-			}
-			else
-			{
-				$currentKey = false;
-			}
+			// Split it into its trimmed key/value
+			$parts = array_map('trim', explode(':', $header, 2));
 
-			if ($key == $currentKey)
+			// Is this the header we're looking for?
+			if (isset($parts[1]) && $name == strtolower($parts[0]))
 			{
-				$exists = true;
-				break;
+				return $parts[1];
 			}
 		}
-
-		return $exists;
 	}
 
 	/**
@@ -199,10 +256,13 @@ class HeaderHelper
 	public static function setHeader($header)
 	{
 		// Don't try to set headers when it's already too late
-		if (true === headers_sent())
+		if (headers_sent())
 		{
 			return false;
 		}
+
+		// Clear out our stored MIME type in case its about to be overridden
+		static::$_mimeType = null;
 
 		if (is_string($header))
 		{
@@ -220,5 +280,7 @@ class HeaderHelper
 				header("$key: $value");
 			}
 		}
+
+		return true;
 	}
 }

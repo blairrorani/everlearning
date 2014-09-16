@@ -6,9 +6,9 @@ namespace Craft;
  * impersonating a user, logging out, forgetting passwords, setting passwords, validating accounts, activating
  * accounts, creating users, saving users, processing user avatars, deleting, suspending and un-suspending users.
  *
- * Note that all actions in the controller, except {@link actionLogin}, {@link actionForgotPassword}, {@link actionValidate},
- * {@link actionSetPassword} and {@link actionSaveUser} require an authenticated Craft session via
- * {@link BaseController::allowAnonymous}.
+ * Note that all actions in the controller, except {@link actionLogin}, {@link actionLogout}, {@link actionGetAuthTimeout},
+ * {@link actionForgotPassword}, {@link actionValidate}, {@link actionSetPassword} and {@link actionSaveUser} require an
+ * authenticated Craft session via {@link BaseController::allowAnonymous}.
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
@@ -36,7 +36,7 @@ class UsersController extends BaseController
 	 *
 	 * @var bool
 	 */
-	protected $allowAnonymous = array('actionLogin', 'actionForgotPassword', 'actionValidate', 'actionSetPassword', 'actionSaveUser');
+	protected $allowAnonymous = array('actionLogin', 'actionLogout', 'actionGetAuthTimeout', 'actionForgotPassword', 'actionValidate', 'actionSetPassword', 'actionSaveUser');
 
 	// Public Methods
 	// =========================================================================
@@ -50,29 +50,8 @@ class UsersController extends BaseController
 	{
 		if (craft()->userSession->isLoggedIn())
 		{
-			if (craft()->request->isAjaxRequest())
-			{
-				$this->returnJson(array(
-					'success' => true
-				));
-			}
-			else
-			{
-				// They are already logged in.
-				$currentUser = craft()->userSession->getUser();
-
-				// If they can access the control panel, redirect them to the dashboard.
-				if ($currentUser->can('accessCp'))
-				{
-					$this->redirect(UrlHelper::getCpUrl('dashboard'));
-				}
-				else
-				{
-					// Already logged in, but can't access the CP?  Send them to
-					// the front-end home page.
-					$this->redirect(UrlHelper::getSiteUrl());
-				}
-			}
+			// Too easy.
+			$this->_handleSuccessfulLogin(false);
 		}
 
 		if (craft()->request->isPostRequest())
@@ -86,17 +65,7 @@ class UsersController extends BaseController
 
 			if (craft()->userSession->login($loginName, $password, $rememberMe))
 			{
-				if (craft()->request->isAjaxRequest())
-				{
-					$this->returnJson(array(
-						'success' => true
-					));
-				}
-				else
-				{
-					craft()->userSession->setNotice(Craft::t('Logged in.'));
-					$this->redirectToPostedUrl();
-				}
+				$this->_handleSuccessfulLogin(true);
 			}
 			else
 			{
@@ -142,14 +111,7 @@ class UsersController extends BaseController
 		{
 			craft()->userSession->setNotice(Craft::t('Logged in.'));
 
-			if (craft()->userSession->getUser()->can('accessCp'))
-			{
-				$this->redirect(UrlHelper::getCpUrl('dashboard'));
-			}
-			else
-			{
-				$this->redirect(UrlHelper::getSiteUrl(''));
-			}
+			$this->_handleSuccessfulLogin(true);
 		}
 		else
 		{
@@ -159,12 +121,33 @@ class UsersController extends BaseController
 	}
 
 	/**
+	 * Returns how many seconds are left in the current user session.
+	 *
+	 * @return null
+	 */
+	public function actionGetAuthTimeout()
+	{
+		echo craft()->userSession->getAuthTimeout();
+		craft()->end();
+	}
+
+	/**
 	 * @return null
 	 */
 	public function actionLogout()
 	{
 		craft()->userSession->logout(false);
-		$this->redirect('');
+
+		if (craft()->request->isAjaxRequest())
+		{
+			$this->returnJson(array(
+				'success' => true
+			));
+		}
+		else
+		{
+			$this->redirect('');
+		}
 	}
 
 	/**
@@ -277,15 +260,16 @@ class UsersController extends BaseController
 					// If the user can't access the CP, then send them to the front-end setPasswordSuccessPath.
 					if (!$user->can('accessCp'))
 					{
-						$url = UrlHelper::getSiteUrl(craft()->config->getLocalized('setPasswordSuccessPath'));
-						$this->redirect($url);
+						$setPasswordSuccessPath = craft()->config->getLocalized('setPasswordSuccessPath');
+						$url = UrlHelper::getSiteUrl($setPasswordSuccessPath);
 					}
 					else
 					{
-						craft()->userSession->setNotice(Craft::t('Password updated.'));
-						$url = UrlHelper::getCpUrl('dashboard');
-						$this->redirect($url);
+						$postCpLoginRedirect = craft()->config->get('postCpLoginRedirect');
+						$url = UrlHelper::getCpUrl($postCpLoginRedirect);
 					}
+
+					$this->redirect($url);
 				}
 			}
 
@@ -627,7 +611,13 @@ class UsersController extends BaseController
 		}
 
 		craft()->templates->includeCssResource('css/account.css');
-		craft()->templates->includeJsResource('js/account.js');
+		craft()->templates->includeJsResource('js/AccountSettingsForm.js');
+		craft()->templates->includeJs('new Craft.AccountSettingsForm('.($variables['account']->isCurrent() ? 'true' : 'false').');');
+
+		craft()->templates->includeTranslations(
+			'Please enter your current password.',
+			'Please enter your password.'
+		);
 
 		$this->renderTemplate('users/_edit', $variables);
 	}
@@ -878,14 +868,14 @@ class UsersController extends BaseController
 			if (!empty($file['name']) && !empty($file['size'])  )
 			{
 				$user = craft()->users->getUserById($userId);
-				$userName = IOHelper::cleanFilename($user->username);
+				$userName = AssetsHelper::cleanAssetName($user->username);
 
 				$folderPath = craft()->path->getTempUploadsPath().'userphotos/'.$userName.'/';
 
 				IOHelper::clearFolder($folderPath);
 
 				IOHelper::ensureFolderExists($folderPath);
-				$fileName = IOHelper::cleanFilename($file['name']);
+				$fileName = AssetsHelper::cleanAssetName($file['name']);
 
 				move_uploaded_file($file['tmp_name'], $folderPath.$fileName);
 
@@ -961,7 +951,7 @@ class UsersController extends BaseController
 			}
 
 			$user = craft()->users->getUserById($userId);
-			$userName = IOHelper::cleanFilename($user->username);
+			$userName = AssetsHelper::cleanAssetName($user->username);
 
 			// make sure that this is this user's file
 			$imagePath = craft()->path->getTempUploadsPath().'userphotos/'.$userName.'/'.$source;
@@ -1248,6 +1238,57 @@ class UsersController extends BaseController
 
 	// Private Methods
 	// =========================================================================
+
+	/**
+	 * Redirects the user after a successful login attempt, or if they visited the Login page while they were already
+	 * logged in.
+	 *
+	 * @param bool $setNotice Whether a flash notice should be set, if this isn't an Ajax request.
+	 *
+	 * @return null
+	 */
+	private function _handleSuccessfulLogin($setNotice)
+	{
+		// If this was an Ajax request, just return success:true
+		if (craft()->request->isAjaxRequest())
+		{
+			$this->returnJson(array(
+				'success' => true
+			));
+		}
+		else
+		{
+			if ($setNotice)
+			{
+				craft()->userSession->setNotice(Craft::t('Logged in.'));
+			}
+
+			// Get the current user
+			$currentUser = craft()->userSession->getUser();
+
+			// Were they trying to access a URL beforehand?
+			$defaultUrl = craft()->userSession->getReturnUrl();
+
+			if ($defaultUrl === null || $defaultUrl == craft()->request->getPath())
+			{
+				// If this is a CP request and they can access the control panel, send them wherever
+				// postCpLoginRedirect tells us
+				if (craft()->request->isCpRequest() && $currentUser->can('accessCp'))
+				{
+					$postCpLoginRedirect = craft()->config->get('postCpLoginRedirect');
+					$defaultUrl = UrlHelper::getCpUrl($postCpLoginRedirect);
+				}
+				else
+				{
+					// Otherwise send them wherever postLoginRedirect tells us
+					$postLoginRedirect = craft()->config->get('postLoginRedirect');
+					$defaultUrl = UrlHelper::getSiteUrl($postLoginRedirect);
+				}
+			}
+
+			$this->redirectToPostedUrl($currentUser, $defaultUrl);
+		}
+	}
 
 	/**
 	 * @param $user

@@ -194,27 +194,6 @@ class ElementsService extends BaseApplicationComponent
 
 		if ($query)
 		{
-			if ($criteria->search)
-			{
-				$elementIds = $this->_getElementIdsFromQuery($query);
-				$scoredSearchResults = ($criteria->order == 'score');
-				$filteredElementIds = craft()->search->filterElementIdsByQuery($elementIds, $criteria->search, $scoredSearchResults);
-
-				// No results?
-				if (!$filteredElementIds)
-				{
-					return array();
-				}
-
-				$query->andWhere(array('in', 'elements.id', $filteredElementIds));
-
-				if ($scoredSearchResults)
-				{
-					// Order the elements in the exact order that SearchService returned them in
-					$query->order(craft()->db->getSchema()->orderByColumnValues('elements.id', $filteredElementIds));
-				}
-			}
-
 			if ($justIds)
 			{
 				$query->select('elements.id');
@@ -424,6 +403,7 @@ class ElementsService extends BaseApplicationComponent
 		}
 
 		// Set up the query
+		// ---------------------------------------------------------------------
 
 		$query = craft()->db->createCommand()
 			->select('elements.id, elements.type, elements.enabled, elements.archived, elements.dateCreated, elements.dateUpdated, elements_i18n.slug, elements_i18n.uri, elements_i18n.enabled AS localeEnabled')
@@ -549,6 +529,7 @@ class ElementsService extends BaseApplicationComponent
 		}
 
 		// i18n params
+		// ---------------------------------------------------------------------
 
 		if ($criteria->slug)
 		{
@@ -609,6 +590,7 @@ class ElementsService extends BaseApplicationComponent
 		}
 
 		// Give field types a chance to make changes
+		// ---------------------------------------------------------------------
 
 		foreach ($criteria->getSupportedFieldHandles() as $fieldHandle)
 		{
@@ -625,6 +607,7 @@ class ElementsService extends BaseApplicationComponent
 		}
 
 		// Give the element type a chance to make changes
+		// ---------------------------------------------------------------------
 
 		if ($elementType->modifyElementsQuery($query, $criteria) === false)
 		{
@@ -632,6 +615,7 @@ class ElementsService extends BaseApplicationComponent
 		}
 
 		// Structure params
+		// ---------------------------------------------------------------------
 
 		if ($query->isJoined('structureelements'))
 		{
@@ -794,11 +778,79 @@ class ElementsService extends BaseApplicationComponent
 				}
 			}
 
+			if ($criteria->positionedBefore)
+			{
+				if (!$criteria->positionedBefore instanceof BaseElementModel)
+				{
+					$criteria->positionedBefore = craft()->elements->getElementById($criteria->positionedBefore, $elementType->getClassHandle());
+				}
+
+				if ($criteria->positionedBefore)
+				{
+					$query->andWhere(
+						array('and',
+							'structureelements.rgt < :positionedBefore_rgt',
+							'structureelements.root = :positionedBefore_root'
+						),
+						array(
+							':positionedBefore_rgt'   => $criteria->positionedBefore->lft,
+							':positionedBefore_root'  => $criteria->positionedBefore->root
+						)
+					);
+				}
+			}
+
+			if ($criteria->positionedAfter)
+			{
+				if (!$criteria->positionedAfter instanceof BaseElementModel)
+				{
+					$criteria->positionedAfter = craft()->elements->getElementById($criteria->positionedAfter, $elementType->getClassHandle());
+				}
+
+				if ($criteria->positionedAfter)
+				{
+					$query->andWhere(
+						array('and',
+							'structureelements.lft > :positionedAfter_lft',
+							'structureelements.root = :positionedAfter_root'
+						),
+						array(
+							':positionedAfter_lft'   => $criteria->positionedAfter->rgt,
+							':positionedAfter_root'  => $criteria->positionedAfter->root
+						)
+					);
+				}
+			}
+
 			if ($criteria->level || $criteria->depth)
 			{
 				// TODO: 'depth' is deprecated; use 'level' instead.
 				$level = ($criteria->level ? $criteria->level : $criteria->depth);
 				$query->andWhere(DbHelper::parseParam('structureelements.level', $level, $query->params));
+			}
+		}
+
+		// Search
+		// ---------------------------------------------------------------------
+
+		if ($criteria->search)
+		{
+			$elementIds = $this->_getElementIdsFromQuery($query);
+			$scoredSearchResults = ($criteria->order == 'score');
+			$filteredElementIds = craft()->search->filterElementIdsByQuery($elementIds, $criteria->search, $scoredSearchResults);
+
+			// No results?
+			if (!$filteredElementIds)
+			{
+				return array();
+			}
+
+			$query->andWhere(array('in', 'elements.id', $filteredElementIds));
+
+			if ($scoredSearchResults)
+			{
+				// Order the elements in the exact order that SearchService returned them in
+				$query->order(craft()->db->getSchema()->orderByColumnValues('elements.id', $filteredElementIds));
 			}
 		}
 
@@ -1436,6 +1488,11 @@ class ElementsService extends BaseApplicationComponent
 			// this element is suddenly going to show up in a new query)
 			craft()->templateCache->deleteCachesByElementId($elementIds, false);
 
+			// Fire an 'onBeforeDeleteElements' event
+			$this->onBeforeDeleteElements(new Event($this, array(
+				'elementIds' => $elementIds
+			)));
+
 			// Now delete the rows in the elements table
 			if (count($elementIds) == 1)
 			{
@@ -1671,6 +1728,18 @@ class ElementsService extends BaseApplicationComponent
 	public function onMergeElements(Event $event)
 	{
 		$this->raiseEvent('onMergeElements', $event);
+	}
+
+	/**
+	 * Fires an 'onBeforeDeleteElements' event.
+	 *
+	 * @param Event $event
+	 *
+	 * @return null
+	 */
+	public function onBeforeDeleteElements(Event $event)
+	{
+		$this->raiseEvent('onBeforeDeleteElements', $event);
 	}
 
 	// Private Methods

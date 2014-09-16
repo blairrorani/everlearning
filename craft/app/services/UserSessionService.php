@@ -33,6 +33,13 @@ class UserSessionService extends \CWebUser
 	private $_identity;
 
 	/**
+	 * Stores the user identity cookie.
+	 *
+	 * @var HttpCookie
+	 */
+	private $_identityCookie;
+
+	/**
 	 * Stores the current user model.
 	 *
 	 * @var UserModel
@@ -49,11 +56,21 @@ class UserSessionService extends \CWebUser
 	 */
 	private $_sessionRestoredFromCookie;
 
+	/**
+	 * Stores whether the request has requested to not extend the user's session.
+	 *
+	 * @var bool
+	 */
+	private $_dontExtendSession;
+
 	// Public Methods
 	// =========================================================================
 
 	/**
 	 * Initializes the application component.
+	 *
+	 * This method will determine how long user sessions are configured to last, and whether the current request
+	 * has requested to not extend the current user session, before calling {@link \CWebUser::init()}.
 	 *
 	 * @return null
 	 */
@@ -61,17 +78,19 @@ class UserSessionService extends \CWebUser
 	{
 		if (!craft()->isConsole())
 		{
-			craft()->getSession()->open();
+			// Set the authTimeout based on whether the current identity was created with "Remember Me" checked.
+			$data = $this->getIdentityCookieValue();
+			$this->authTimeout = craft()->config->getUserSessionDuration($data ? $data[3] : false);
 
-			// Let's set our own state key prefix. Leaving identical to CWebUser for the key so people won't get logged
-			// out when updating.
-			$this->setStateKeyPrefix(md5('Yii.Craft\UserSessionService.'.craft()->getId()));
+			// Should we skip auto login and cookie renewal?
+			$request = craft()->request;
+			$this->_dontExtendSession = (
+				$request->isGetRequest() &&
+				$request->isCpRequest() &&
+				$request->getParam('dontExtendSession')
+			);
 
-			$rememberMe = craft()->request->getCookie('rememberMe') !== null ? true : false;
-			$seconds = $this->_getSessionDuration($rememberMe);
-			$this->authTimeout = $seconds;
-
-			$this->updateAuthStatus();
+			$this->autoRenewCookie = !$this->_dontExtendSession;
 
 			parent::init();
 		}
@@ -85,9 +104,9 @@ class UserSessionService extends \CWebUser
 	public function getUser()
 	{
 		// Does a user appear to be logged in?
-		if (craft()->isInstalled() && $this->getState('__id') !== null)
+		if (craft()->isInstalled() && !$this->getIsGuest())
 		{
-			if (!isset($this->_user))
+			if (!isset($this->_userModel))
 			{
 				$userRow = $this->_getUserRow($this->getId());
 
@@ -109,13 +128,31 @@ class UserSessionService extends \CWebUser
 	 * Returns the URL the user was trying to access before getting redirected to the login page via
 	 * {@link requireLogin()}.
 	 *
-	 * @param string $defaultUrl The default URL that should be returned if no return URL was stored.
+	 * @param string|null $defaultUrl The default URL that should be returned if no return URL was stored.
 	 *
-	 * @return string The return URL, or $defaultUrl.
+	 * @return string|null The return URL, or $defaultUrl.
 	 */
-	public function getReturnUrl($defaultUrl = '')
+	public function getReturnUrl($defaultUrl = null)
 	{
-		return $this->getState('__returnUrl', UrlHelper::getUrl($defaultUrl));
+		$returnUrl = $this->getState('__returnUrl');
+
+		if ($returnUrl !== null)
+		{
+			// Strip out any tags that may have gotten in there by accident
+			// i.e. if there was a {siteUrl} tag in the Site URL setting, but no matching environment variable,
+			// so they ended up on something like http://example.com/%7BsiteUrl%7D/some/path
+			$returnUrl = str_replace(array('{', '}'), array('', ''), $returnUrl);
+		}
+
+		if ($returnUrl === null)
+		{
+			$returnUrl = $defaultUrl;
+		}
+
+		if ($returnUrl !== null)
+		{
+			return UrlHelper::getUrl($returnUrl);
+		}
 	}
 
 	/**
@@ -304,14 +341,17 @@ class UserSessionService extends \CWebUser
 	{
 		if ($this->isGuest())
 		{
-			if (craft()->config->get('loginPath') === craft()->request->getPath())
+			// Ignore if this was called from the Login page
+			if (craft()->request->isSiteRequest() && craft()->config->get('loginPath') == craft()->request->getPath())
 			{
-				throw new Exception(Craft::t('requireLogin was used on the login page, creating an infinite loop.'));
+				Craft::log('UserSessionService::requireLogin() was called from the Login page.', LogLevel::Warning, true);
+				return;
 			}
 
 			if (!craft()->request->isAjaxRequest())
 			{
 				$url = craft()->request->getPath();
+
 				if (($queryString = craft()->request->getQueryStringWithoutPath()))
 				{
 					if (craft()->request->getPathInfo())
@@ -376,7 +416,7 @@ class UserSessionService extends \CWebUser
 		if (!craft()->request->userAgent || !$_SERVER['REMOTE_ADDR'])
 		{
 			Craft::log('Someone tried to login with loginName: '.$username.', without presenting an IP address or userAgent string.', LogLevel::Warning);
-			$this->logout();
+			$this->logout(true);
 			$this->requireLogin();
 		}
 
@@ -395,37 +435,16 @@ class UserSessionService extends \CWebUser
 
 				if ($rememberUsernameDuration)
 				{
-					$interval = new DateInterval($rememberUsernameDuration);
-					$expire = new DateTime();
-					$expire->add($interval);
-
-					// Save the username cookie.
-					$this->saveCookie('username', $username, $expire->getTimestamp());
+					$this->saveCookie('username', $username, DateTimeHelper::timeFormatToSeconds($rememberUsernameDuration));
 				}
-
-				// If there is a remember me cookie, but $rememberMe is false, they logged in with an unchecked remember
-				// me box, so let's remove the cookie.
-				if (craft()->request->getCookie('rememberMe') !== null && !$rememberMe)
+				else
 				{
-					craft()->request->deleteCookie('rememberMe');
-				}
-
-				if ($rememberMe)
-				{
-					$rememberMeSessionDuration = craft()->config->get('rememberedUserSessionDuration');
-					if ($rememberMeSessionDuration)
-					{
-						$interval = new DateInterval($rememberMeSessionDuration);
-						$expire = new DateTime();
-						$expire->add($interval);
-
-						// Save the username cookie.
-						$this->saveCookie('rememberMe', true, $expire->getTimestamp());
-					}
+					// Just in case...
+					$this->deleteStateCookie('username');
 				}
 
 				// Get how long this session is supposed to last.
-				$seconds = $this->_getSessionDuration($rememberMe);
+				$this->authTimeout = craft()->config->getUserSessionDuration($rememberMe);
 
 				$id = $this->_identity->getId();
 				$states = $this->_identity->getPersistentStates();
@@ -445,7 +464,7 @@ class UserSessionService extends \CWebUser
 						'username'      => $usernameModel->username,
 					)));
 
-					if ($seconds > 0)
+					if ($this->authTimeout)
 					{
 						if ($this->allowAutoLogin)
 						{
@@ -457,18 +476,17 @@ class UserSessionService extends \CWebUser
 								$sessionToken = StringHelper::UUID();
 								$hashedToken = craft()->security->hashData(base64_encode(serialize($sessionToken)));
 								$uid = craft()->users->handleSuccessfulLogin($user, $hashedToken);
-								$userAgent = craft()->request->userAgent;
 
 								$data = array(
 									$this->getName(),
 									$sessionToken,
 									$uid,
-									$seconds,
-									$userAgent,
+									($rememberMe ? 1 : 0),
+									craft()->request->getUserAgent(),
 									$this->saveIdentityStates(),
 								);
 
-								$this->saveCookie('', $data, $seconds);
+								$this->_identityCookie = $this->saveCookie('', $data, $this->authTimeout);
 							}
 							else
 							{
@@ -643,7 +661,7 @@ class UserSessionService extends \CWebUser
 	 */
 	public function getRememberedUsername()
 	{
-		return $this->getCookieValue('username');
+		return $this->getStateCookieValue('username');
 	}
 
 	/**
@@ -659,17 +677,16 @@ class UserSessionService extends \CWebUser
 	/**
 	 * Sets a cookie on the browser.
 	 *
-	 * @param string $cookieName The name of the cookie.
-	 * @param mixed  $data       The data that should be stored on the cookie.
-	 * @param int    $duration   The duration that the cookie should be stored for, in seconds.
+	 * @param string $name     The name of the cookie.
+	 * @param mixed  $data     The data that should be stored on the cookie.
+	 * @param int    $duration The duration that the cookie should be stored for, in seconds.
 	 *
-	 * @todo Set domain to wildcard?  .example.com, .example.co.uk, .too.many.subdomains.com
-	 * @return null
+	 * @return HttpCookie The cookie.
 	 */
-	public function saveCookie($cookieName, $data, $duration = 0)
+	public function saveCookie($name, $data, $duration = 0)
 	{
-		$cookieName = $this->getStateKeyPrefix().$cookieName;
-		$cookie = new \CHttpCookie($cookieName, '');
+		$name = $this->getStateKeyPrefix().$name;
+		$cookie = new HttpCookie($name, '');
 		$cookie->httpOnly = true;
 		$cookie->expire = time() + $duration;
 
@@ -679,27 +696,131 @@ class UserSessionService extends \CWebUser
 		}
 
 		$cookie->value = craft()->security->hashData(base64_encode(serialize($data)));
-		craft()->getRequest()->getCookies()->add($cookie->name, $cookie);
+		craft()->request->getCookies()->add($cookie->name, $cookie);
+
+		return $cookie;
 	}
 
 	/**
-	 * Returns the value of a cookie by its name.
+	 * Deletes a cookie on the browser that was stored for the current application state.
 	 *
-	 * @param string $cookieName The name of the cookie.
+	 * @param string $name The name of the cookie.
 	 *
-	 * @return mixed The value of the cookie, or `null` if the cookie doesn’t exist.
+	 * @return null
 	 */
-	public function getCookieValue($cookieName)
+	public function deleteStateCookie($name)
 	{
-		$cookie = craft()->request->getCookie($this->getStateKeyPrefix().$cookieName);
+		$name = $this->getStateKeyPrefix().$name;
+		craft()->request->deleteCookie($name);
+	}
+
+	/**
+	 * Returns a cookie that was stored for the current application state.
+	 *
+	 * @param string $name The cookie name.
+	 *
+	 * @return HttpCookie|null The cookie, or `null` if it didn’t exist.
+	 */
+	public function getStateCookie($name)
+	{
+		$name = $this->getStateKeyPrefix().$name;
+		return craft()->request->getCookie($name);
+	}
+
+	/**
+	 * Returns the value of a cookie by its name, ensuring that the data hasn’t been tampered with.
+	 *
+	 * @param HttpCookie|string $cookie The cookie, or the name of the cookie.
+	 *
+	 * @return mixed The value of the cookie if it exists and hasn’t been tampered with, or `null`.
+	 */
+	public function getStateCookieValue($cookie)
+	{
+		if (is_string($cookie))
+		{
+			$cookie = $this->getStateCookie($cookie);
+		}
 
 		if ($cookie && !empty($cookie->value) && ($data = craft()->security->validateData($cookie->value)) !== false)
 		{
-			$data = @unserialize(base64_decode($data));
-			return $data;
+			return @unserialize(base64_decode($data));
+		}
+	}
+
+	/**
+	 * Returns the current user identity cookie, if there is one.
+	 *
+	 * @return HttpCookie|null The user identity cookie.
+	 */
+	public function getIdentityCookie()
+	{
+		if (!isset($this->_identityCookie))
+		{
+			$cookie = $this->getStateCookie('');
+
+			if ($cookie)
+			{
+				$this->_identityCookie = $cookie;
+			}
+			else
+			{
+				$this->_identityCookie = false;
+			}
 		}
 
-		return null;
+		// Don't return false if that's what it is
+		if ($this->_identityCookie)
+		{
+			return $this->_identityCookie;
+		}
+	}
+
+	/**
+	 * Returns the current user identity cookie’s value, if there is one.
+	 *
+	 * @param HttpCookie|null The user identity cookie, or `null` if you don’t have it on hand.
+	 *
+	 * @return array|null The user identity cookie’s data, or `null` if it didn’t exist.
+	 */
+	public function getIdentityCookieValue(HttpCookie $cookie = null)
+	{
+		if (!$cookie)
+		{
+			$cookie = $this->getIdentityCookie();
+		}
+
+		if (
+			$cookie &&
+			($data = $this->getStateCookieValue($cookie)) &&
+			is_array($data) &&
+			isset($data[0], $data[1], $data[2], $data[3], $data[4], $data[5])
+		)
+		{
+			// TODO: remove this code after a while
+
+			// If $data[3] is something besides 0 or 1, it was created before Craft 2.2, and represents the auth timeout
+			// rather than whether Remember Me was checked. Let's fix that.
+			if ($data[3] != 0 && $data[3] != 1)
+			{
+				// Delete the old rememberMe cookie(s)
+				craft()->request->deleteCookie('rememberMe');
+				$this->deleteStateCookie('rememberMe');
+
+				// Replace $data[3]'s value with a 0 or 1
+				$duration = craft()->config->get('rememberedUserSessionDuration');
+
+				if (is_numeric($data[3]) && $data[3] >= DateTimeHelper::timeFormatToSeconds($duration))
+				{
+					$data[3] = 1;
+				}
+				else
+				{
+					$data[3] = 0;
+				}
+			}
+
+			return $data;
+		}
 	}
 
 	/**
@@ -713,6 +834,43 @@ class UserSessionService extends \CWebUser
 	public function wasSessionRestoredFromCookie()
 	{
 		return $this->_sessionRestoredFromCookie;
+	}
+
+	/**
+	 * Returns how many seconds are left in the current user session.
+	 *
+	 * @return int The seconds left in the session, or -1 if their session will expire when their HTTP session ends.
+	 */
+	public function getAuthTimeout()
+	{
+		// Are they logged in?
+		if (!$this->getIsGuest())
+		{
+			// Is the site configured to have fixed user session durations?
+			if ($this->authTimeout)
+			{
+				$expires = $this->getState(static::AUTH_TIMEOUT_VAR);
+
+				if ($expires !== null)
+				{
+					$currentTime = time();
+
+					// Shouldn't be possible for $expires to be < $currentTime because updateAuthStatus() would have
+					// logged them out, but what the hell.
+					if ($expires > $currentTime)
+					{
+						return $expires - $currentTime;
+					}
+				}
+			}
+			else
+			{
+				// The session duration must have been empty (expire when the HTTP session ends)
+				return -1;
+			}
+		}
+
+		return 0;
 	}
 
 	/**
@@ -765,6 +923,26 @@ class UserSessionService extends \CWebUser
 		$this->raiseEvent('onLogin', $event);
 	}
 
+	/**
+	 * Fires an 'onBeforeLogout' event.
+	 *
+	 * @param Event $event
+	 */
+	public function onBeforeLogout(Event $event)
+	{
+		$this->raiseEvent('onBeforeLogout', $event);
+	}
+
+	/**
+	 * Fires an 'onLogout' event.
+	 *
+	 * @param Event $event
+	 */
+	public function onLogout(Event $event)
+	{
+		$this->raiseEvent('onLogout', $event);
+	}
+
 	// Protected Methods
 	// =========================================================================
 
@@ -791,36 +969,76 @@ class UserSessionService extends \CWebUser
 	}
 
 	/**
+	 * Updates the authentication status according to {@link authTimeout}.
+	 *
+	 * Based on the parts of {@link \CWebUser::updateAuthStatus()} that are relevant to Craft, but this version also
+	 * enforces the [requireUserAgentAndIpForSession](http://buildwithcraft.com/docs/config-settings#requireUserAgentAndIpForSession)
+	 * config setting, and it won't update the timeout state if the 'dontExtendSession' param is set.
+	 *
+	 * @return null
+	 */
+	protected function updateAuthStatus()
+	{
+		// Do we think that they're logged in?
+		if (!$this->getIsGuest())
+		{
+			// Enforce the requireUserAgentAndIpForSession config setting
+			// (helps prevent direct socket connections from trying to log in)
+			if (craft()->config->get('requireUserAgentAndIpForSession'))
+			{
+				if (!craft()->request->getUserAgent() || !craft()->request->getIpAddress())
+				{
+					Craft::log('Request didn’t meet the user agent and IP requirement for maintaining a user session.', LogLevel::Warning);
+					$this->logout(true);
+					return;
+				}
+			}
+
+			// Is the site configured to have fixed user session durations?
+			if ($this->authTimeout)
+			{
+				// Has the session expired?
+				$expires = $this->getState(self::AUTH_TIMEOUT_VAR);
+
+				if ($expires === null || $expires < time())
+				{
+					// Log 'em out
+					$this->logout(false);
+				}
+				else if (!$this->_dontExtendSession)
+				{
+					// Update our record of when the session will expire
+					$this->setState(self::AUTH_TIMEOUT_VAR, time() + $this->authTimeout);
+				}
+			}
+		}
+	}
+
+	/**
 	 * Renews the user’s identity cookie.
+	 *
+	 * This function extends the identity cookie's expiration time based on either the
+	 * [userSessionDuration](http://buildwithcraft.com/docs/config-settings#userSessionDuration) or
+	 * [rememberedUserSessionDuration](http://buildwithcraft.com/docs/config-settings#rememberedUserSessionDuration)
+	 * config setting, depending on whether Remember Me was checked when they logged in.
 	 *
 	 * @return null
 	 */
 	protected function renewCookie()
 	{
-		$this->_checkVitals();
+		$cookie = $this->getIdentityCookie();
 
-		$cookies = craft()->request->getCookies();
-		$cookie = $cookies->itemAt($this->getStateKeyPrefix());
-
-		// Check the identity cookie and make sure the data hasn't been tampered with.
-		if ($cookie && !empty($cookie->value) && ($data = craft()->security->validateData($cookie->value)) !== false)
+		if ($cookie)
 		{
-			$data = $this->getCookieValue('');
+			$data = $this->getIdentityCookieValue($cookie);
 
-			if (is_array($data) && isset($data[0], $data[1], $data[2], $data[3], $data[4], $data[5]))
+			if ($data && $this->_checkUserAgentString($data[4]))
 			{
-				$savedUserAgent = $data[4];
-				$currentUserAgent = craft()->request->userAgent;
-
-				$this->_checkUserAgentString($currentUserAgent, $savedUserAgent);
-
-				// Bump the expiration time.
-				$expiration = time() + $data[3];
+				// Extend the expiration time
+				$expiration = time() + $this->authTimeout;
 				$cookie->expire = $expiration;
-				$cookies->add($cookie->name, $cookie);
-
-				$this->authTimeout = $data[3];
-				$this->setState(static::AUTH_TIMEOUT_VAR, $expiration);
+				$cookie->httpOnly = true;
+				craft()->request->getCookies()->add($cookie->name, $cookie);
 			}
 		}
 	}
@@ -831,35 +1049,35 @@ class UserSessionService extends \CWebUser
 	 * This method is used when automatic login ({@link allowAutoLogin}) is enabled. The user identity information is
 	 * recovered from cookie.
 	 *
+	 * @todo Verify that it's totally necessary to re-save the cookie with a new user session token
 	 * @return null
 	 */
 	protected function restoreFromCookie()
 	{
-		if (!$this->_checkVitals())
+		// If this request doesn't want to extend the user session, it is unfortunately not possible for us to restore
+		// their user session from a cookie, because the cookie needs to be re-saved with a new user session token,
+		// but we can't do that without also setting a new expiration date.
+		if ($this->_dontExtendSession)
 		{
-			return false;
+			return;
 		}
 
 		// See if they have an existing identity cookie.
-		$cookie = craft()->request->getCookies()->itemAt($this->getStateKeyPrefix());
+		$cookie = $this->getIdentityCookie();
 
-		// Grab the identity cookie and make sure the data hasn't been tampered with.
-		if ($cookie && !empty($cookie->value) && is_string($cookie->value) && ($data = craft()->security->validateData($cookie->value)) !== false)
+		if ($cookie)
 		{
-			// Grab the data
-			$data = $this->getCookieValue('');
+			$data = $this->getIdentityCookieValue($cookie);
 
-			if (is_array($data) && isset($data[0], $data[1], $data[2], $data[3], $data[4], $data[5]))
+			if ($data && $this->_checkUserAgentString($data[4]))
 			{
 				$loginName = $data[0];
 				$currentSessionToken = $data[1];
 				$uid = $data[2];
-				$seconds = $data[3];
-				$savedUserAgent = $data[4];
+				$rememberMe = $data[3];
 				$states = $data[5];
 				$currentUserAgent = craft()->request->userAgent;
-
-				$this->_checkUserAgentString($currentUserAgent, $savedUserAgent);
+				$this->authTimeout = craft()->config->getUserSessionDuration($rememberMe);
 
 				// Get the hashed token from the db based on login name and uid.
 				if (($sessionRow = $this->_findSessionToken($loginName, $uid)) !== false)
@@ -869,6 +1087,7 @@ class UserSessionService extends \CWebUser
 
 					// Make sure the given session token matches what we have in the db.
 					$checkHashedToken= craft()->security->hashData(base64_encode(serialize($currentSessionToken)));
+
 					if (strcmp($checkHashedToken, $dbHashedToken) === 0)
 					{
 						// It's all good.
@@ -891,13 +1110,12 @@ class UserSessionService extends \CWebUser
 									$this->getName(),
 									$newSessionToken,
 									$uid,
-									$seconds,
+									($rememberMe ? 1 : 0),
 									$currentUserAgent,
 									$states,
 								);
 
-								$this->saveCookie('', $data, $seconds);
-								$this->authTimeout = $seconds;
+								$this->_identityCookie = $this->saveCookie('', $data, $this->authTimeout);
 								$this->_sessionRestoredFromCookie = true;
 								$this->_userRow = null;
 							}
@@ -907,23 +1125,36 @@ class UserSessionService extends \CWebUser
 					}
 					else
 					{
-						Craft::log('Tried to restore session from a cookie, but the given hashed database token value does not appear to belong to the given login name. Hashed db value: '.$dbHashedToken.' and loginName: '.$loginName.'.', LogLevel::Error);
+						Craft::log('Tried to restore session from a cookie, but the given hashed database token value does not appear to belong to the given login name. Hashed db value: '.$dbHashedToken.' and loginName: '.$loginName.'.', LogLevel::Warning);
 						// Forcing logout here clears the identity cookie helping to prevent session fixation.
-						$this->logout();
+						$this->logout(true);
 					}
 				}
 				else
 				{
-					Craft::log('Tried to restore session from a cookie, but the given login name does not match the given uid. UID: '.$uid.' and loginName: '.$loginName.'.', LogLevel::Error);
+					Craft::log('Tried to restore session from a cookie, but the given login name does not match the given uid. UID: '.$uid.' and loginName: '.$loginName.'.', LogLevel::Warning);
 					// Forcing logout here clears the identity cookie helping to prevent session fixation.
-					$this->logout();
+					$this->logout(true);
 				}
 			}
 			else
 			{
-				Craft::log('Tried to restore session from a cookie, but it appears we the data in the cookie is invalid.', LogLevel::Error);
-				$this->logout();
+				Craft::log('Tried to restore session from a cookie, but it appears we the data in the cookie is invalid.', LogLevel::Warning);
+				$this->logout(true);
 			}
+		}
+	}
+
+	/**
+	 * Called after a user is logged in.
+	 *
+	 * @return null
+	 */
+	protected function afterLogin()
+	{
+		if ($this->authTimeout)
+		{
+			$this->setState(static::AUTH_TIMEOUT_VAR, time()+$this->authTimeout);
 		}
 	}
 
@@ -934,15 +1165,16 @@ class UserSessionService extends \CWebUser
 	 */
 	protected function beforeLogout()
 	{
-		$cookie = craft()->request->getCookies()->itemAt($this->getStateKeyPrefix());
+		// Fire an 'onBeforeLogout' event
+		$this->onBeforeLogout(new Event($this));
 
-		// Grab the identity cookie information and make sure the data hasn't been tampered with.
-		if ($cookie && !empty($cookie->value) && is_string($cookie->value) && ($data = craft()->security->validateData($cookie->value)) !== false)
+		$cookie = $this->getIdentityCookie();
+
+		if ($cookie)
 		{
-			// Grab the data
-			$data = $this->getCookieValue('');
+			$data = $this->getIdentityCookieValue($cookie);
 
-			if (is_array($data) && isset($data[0], $data[1], $data[2], $data[3], $data[4], $data[5]))
+			if ($data)
 			{
 				$loginName = $data[0];
 				$uid = $data[2];
@@ -957,13 +1189,30 @@ class UserSessionService extends \CWebUser
 			}
 			else
 			{
-				Craft::log('During logout, tried to remove the row from the sessions table, but it appears the cookie data is invalid.', LogLevel::Error);
+				Craft::log('During logout, tried to remove the row from the sessions table, but it appears the cookie data is invalid.', LogLevel::Warning);
 			}
 		}
 
 		$this->_userRow = null;
 
 		return true;
+	}
+
+	/**
+	 * Fires an 'onLogout' event after a user has been logged out.
+	 *
+	 * @return null
+	 */
+	protected function afterLogout()
+	{
+		// Clear the stored user model
+		$this->_userModel = null;
+
+		// Delete the identity cookie, if there is one
+		$this->deleteStateCookie('');
+
+		// Fire an 'onLogout' event
+		$this->onLogout(new Event($this));
 	}
 
 	// Private Methods
@@ -1020,39 +1269,6 @@ class UserSessionService extends \CWebUser
 	}
 
 	/**
-	 * @param string $rememberMe
-	 *
-	 * @return int
-	 */
-	private function _getSessionDuration($rememberMe)
-	{
-		if ($rememberMe)
-		{
-			$duration = craft()->config->get('rememberedUserSessionDuration');
-		}
-		else
-		{
-			$duration = craft()->config->get('userSessionDuration');
-		}
-
-		// Calculate how long the session should last.
-		if ($duration)
-		{
-			$interval = new DateInterval($duration);
-			$expire = DateTimeHelper::currentUTCDateTime();
-			$currentTimeStamp = $expire->getTimestamp();
-			$futureTimeStamp = $expire->add($interval)->getTimestamp();
-			$seconds = $futureTimeStamp - $currentTimeStamp;
-		}
-		else
-		{
-			$seconds = null;
-		}
-
-		return $seconds;
-	}
-
-	/**
 	 * @param int $id
 	 *
 	 * @return int
@@ -1088,45 +1304,35 @@ class UserSessionService extends \CWebUser
 	}
 
 	/**
-	 * Checks whether the the current request has a user agent string or IP address.
+	 * Enforces the requireMatchingUserAgentForSession config setting by verifying that the user agent string on the
+	 * identity cookie matches the current request's user agent string.
 	 *
-	 * @return bool
+	 * If they don't match, a warning will be logged and the user will be logged out.
+	 *
+	 * @param string $userAgent  The user agent string stored in the cookie.
+	 * @param bool   $autoLogout Whether the user should be logged out if the user agents don't match.
+	 *
+	 * @return bool Whether the user agent strings matched.
 	 */
-	private function _checkVitals()
+	private function _checkUserAgentString($userAgent, $autoLogout = true)
 	{
-		if (craft()->config->get('requireUserAgentAndIpForSession'))
+		if (craft()->config->get('requireMatchingUserAgentForSession'))
 		{
-			// Require a userAgent string and an IP address to help prevent direct socket connections from trying to login.
-			if (!craft()->request->userAgent || !craft()->request->getIpAddress())
+			$currentUserAgent = craft()->request->getUserAgent();
+
+			if ($userAgent !== $currentUserAgent)
 			{
-				Craft::log('Someone tried to restore a session from a cookie without presenting an IP address or userAgent string.', LogLevel::Warning);
-				$this->logout(true);
+				Craft::log('Tried to restore session from the the identity cookie, but the saved user agent ('.$userAgent.') does not match the current userAgent ('.$currentUserAgent.').', LogLevel::Warning);
+
+				if ($autoLogout)
+				{
+					$this->logout(true);
+				}
 
 				return false;
 			}
 		}
 
 		return true;
-	}
-
-	/**
-	 * Checks whether the current user agent string matches the user agent string saved in the identity cookie.
-	 *
-	 * @param string $currentUserAgent
-	 * @param string $savedUserAgent
-	 *
-	 * @return null
-	 */
-	private function _checkUserAgentString($currentUserAgent, $savedUserAgent)
-	{
-		if (craft()->config->get('requireMatchingUserAgentForSession'))
-		{
-			// If the saved userAgent differs from the current one, bail.
-			if ($savedUserAgent !== $currentUserAgent)
-			{
-				Craft::log('Tried to restore session from the the identity cookie, but the saved userAgent ('.$savedUserAgent.') does not match the current userAgent ('.$currentUserAgent.').', LogLevel::Warning);
-				$this->logout(true);
-			}
-		}
 	}
 }

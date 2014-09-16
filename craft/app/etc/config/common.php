@@ -182,6 +182,8 @@ $configArray = array(
 		'app.etc.templating.twigextensions.TemplateLoader',
 		'app.etc.updates.Updater',
 		'app.etc.users.UserIdentity',
+		'app.etc.web.CookieCollection',
+		'app.etc.web.HttpCookie',
 		'app.etc.web.UploadedFile',
 		'app.etc.web.UrlManager',
 		'app.extensions.NestedSetBehavior',
@@ -203,6 +205,7 @@ $configArray = array(
 		'app.fieldtypes.NumberFieldType',
 		'app.fieldtypes.OptionData',
 		'app.fieldtypes.PlainTextFieldType',
+		'app.fieldtypes.PositionSelectFieldType',
 		'app.fieldtypes.RadioButtonsFieldType',
 		'app.fieldtypes.RichTextData',
 		'app.fieldtypes.RichTextFieldType',
@@ -387,6 +390,7 @@ $configArray = array(
 		'app.tasks.BaseTask',
 		'app.tasks.DeleteStaleTemplateCachesTask',
 		'app.tasks.FindAndReplaceTask',
+		'app.tasks.GeneratePendingTransformsTask',
 		'app.tasks.ITask',
 		'app.tasks.ResaveAllElementsTask',
 		'app.tasks.ResaveElementsTask',
@@ -464,7 +468,6 @@ $configArray = array(
 	'components' => array(
 
 		'db' => array(
-			'driverMap'         => array('mysql' => 'Craft\MysqlSchema'),
 			'class'             => 'Craft\DbConnection',
 		),
 
@@ -489,16 +492,16 @@ $configArray = array(
 // CP routes
 // ----------------------------------------------------------------------------
 
-$cpRoutes['categories/(?P<groupHandle>{handle})'] = 'categories';
+$cpRoutes['categories/(?P<groupHandle>{handle})']                                 = 'categories';
 
-$cpRoutes['dashboard/settings/new']               = 'dashboard/settings/_widgetsettings';
-$cpRoutes['dashboard/settings/(?P<widgetId>\d+)'] = 'dashboard/settings/_widgetsettings';
+$cpRoutes['dashboard/settings/new']                                               = 'dashboard/settings/_widgetsettings';
+$cpRoutes['dashboard/settings/(?P<widgetId>\d+)']                                 = 'dashboard/settings/_widgetsettings';
 
-$cpRoutes['entries/(?P<sectionHandle>{handle})']                  = 'entries';
-$cpRoutes['entries/(?P<sectionHandle>{handle})/new']              = array('action' => 'entries/editEntry');
-$cpRoutes['entries/(?P<sectionHandle>{handle})/(?P<entryId>\d+)'] = array('action' => 'entries/editEntry');
+$cpRoutes['entries/(?P<sectionHandle>{handle})']                                  = 'entries';
+$cpRoutes['entries/(?P<sectionHandle>{handle})/new']                              = array('action' => 'entries/editEntry');
+$cpRoutes['entries/(?P<sectionHandle>{handle})/(?P<entryId>\d+)(?:-{slug})?']     = array('action' => 'entries/editEntry');
 
-$cpRoutes['globals/(?P<globalSetHandle>{handle})']                = array('action' => 'globals/editContent');
+$cpRoutes['globals/(?P<globalSetHandle>{handle})']                                = array('action' => 'globals/editContent');
 
 $cpRoutes['updates/go/(?P<handle>[^/]*)'] = 'updates/_go';
 
@@ -554,20 +557,20 @@ $cpRoutes['settings/routes'] = array(
 $cpRoutes['myaccount'] = array('action' => 'users/editUser', 'params' => array('account' => 'current'));
 
 // Client routes
-$cpRoutes['editionRoutes'][1]['clientaccount']                                                                    = array('action' => 'users/editUser', 'params' => array('account' => 'client'));
-$cpRoutes['editionRoutes'][1]['entries/(?P<sectionHandle>{handle})/(?P<entryId>\d+)/drafts/(?P<draftId>\d+)']     = array('action' => 'entries/editEntry');
-$cpRoutes['editionRoutes'][1]['entries/(?P<sectionHandle>{handle})/(?P<entryId>\d+)/versions/(?P<versionId>\d+)'] = array('action' => 'entries/editEntry');
+$cpRoutes['editionRoutes'][1]['clientaccount']                                                                                = array('action' => 'users/editUser', 'params' => array('account' => 'client'));
+$cpRoutes['editionRoutes'][1]['entries/(?P<sectionHandle>{handle})/(?P<entryId>\d+)(?:-{slug}?)?/drafts/(?P<draftId>\d+)']    = array('action' => 'entries/editEntry');
+$cpRoutes['editionRoutes'][1]['entries/(?P<sectionHandle>{handle})/(?P<entryId>\d+)(?:-{slug})?/versions/(?P<versionId>\d+)'] = array('action' => 'entries/editEntry');
 
 // Pro routes
-$cpRoutes['editionRoutes'][2]['clientaccount']                                                                    = false;
-$cpRoutes['editionRoutes'][2]['entries/(?P<sectionHandle>{handle})/(?P<entryId>\d+)/(?P<localeId>\w+)']           = array('action' => 'entries/editEntry');
-$cpRoutes['editionRoutes'][2]['entries/(?P<sectionHandle>{handle})/new/(?P<localeId>\w+)']                        = array('action' => 'entries/editEntry');
-$cpRoutes['editionRoutes'][2]['globals/(?P<localeId>\w+)/(?P<globalSetHandle>{handle})']                          = array('action' => 'globals/editContent');
-$cpRoutes['editionRoutes'][2]['users/new']                                                                        = array('action' => 'users/editUser');
-$cpRoutes['editionRoutes'][2]['users/(?P<userId>\d+)']                                                            = array('action' => 'users/editUser');
-$cpRoutes['editionRoutes'][2]['settings/users']                                                                   = 'settings/users/groups';
-$cpRoutes['editionRoutes'][2]['settings/users/groups/new']                                                        = 'settings/users/groups/_settings';
-$cpRoutes['editionRoutes'][2]['settings/users/groups/(?P<groupId>\d+)']                                           = 'settings/users/groups/_settings';
+$cpRoutes['editionRoutes'][2]['clientaccount']                                                                                = false;
+$cpRoutes['editionRoutes'][2]['entries/(?P<sectionHandle>{handle})/(?P<entryId>\d+)(?:-{slug})?/(?P<localeId>\w+)']           = array('action' => 'entries/editEntry');
+$cpRoutes['editionRoutes'][2]['entries/(?P<sectionHandle>{handle})/new/(?P<localeId>\w+)']                                    = array('action' => 'entries/editEntry');
+$cpRoutes['editionRoutes'][2]['globals/(?P<localeId>\w+)/(?P<globalSetHandle>{handle})']                                      = array('action' => 'globals/editContent');
+$cpRoutes['editionRoutes'][2]['users/new']                                                                                    = array('action' => 'users/editUser');
+$cpRoutes['editionRoutes'][2]['users/(?P<userId>\d+)']                                                                        = array('action' => 'users/editUser');
+$cpRoutes['editionRoutes'][2]['settings/users']                                                                               = 'settings/users/groups';
+$cpRoutes['editionRoutes'][2]['settings/users/groups/new']                                                                    = 'settings/users/groups/_settings';
+$cpRoutes['editionRoutes'][2]['settings/users/groups/(?P<groupId>\d+)']                                                       = 'settings/users/groups/_settings';
 
 //  Component config
 // ----------------------------------------------------------------------------
@@ -668,6 +671,7 @@ $components['editionComponents'][2]['userPermissions']['class'] = 'Craft\UserPer
 
 $components['file']['class'] = 'Craft\File';
 $components['messages']['class'] = 'Craft\PhpMessageSource';
+$components['coreMessages']['class'] = 'Craft\PhpMessageSource';
 $components['request']['class'] = 'Craft\HttpRequestService';
 $components['request']['enableCookieValidation'] = true;
 $components['viewRenderer']['class'] = 'Craft\TemplateProcessor';

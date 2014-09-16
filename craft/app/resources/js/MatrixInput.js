@@ -201,7 +201,7 @@ Craft.MatrixInput = Garnish.Base.extend(
 
 		$(bodyHtml).appendTo($fieldsContainer);
 
-		$block.css(this.getHiddenBlockCss($block)).animate({
+		$block.css(this.getHiddenBlockCss($block)).velocity({
 			opacity: 1,
 			'margin-bottom': 10
 		}, 'fast', $.proxy(function()
@@ -325,7 +325,7 @@ var MatrixBlock = Garnish.Base.extend(
 		menuBtn.menu.settings.onOptionSelect = $.proxy(this, 'onMenuOptionSelect');
 
 		// Was this block already collapsed?
-		if (this.$container.data('collapsed'))
+		if (Garnish.hasAttr(this.$container, 'data-collapsed'))
 		{
 			this.collapse();
 		}
@@ -439,7 +439,7 @@ var MatrixBlock = Garnish.Base.extend(
 		{
 			this.$previewContainer.fadeIn('fast');
 			this.$fieldsContainer.fadeOut('fast');
-			this.$container.animate({ height: 0 }, 'fast');
+			this.$container.velocity({ height: 0 }, 'fast');
 		}
 		else
 		{
@@ -491,7 +491,7 @@ var MatrixBlock = Garnish.Base.extend(
 		this.$container.height(collapsedContainerHeight);
 		this.$fieldsContainer.hide().fadeIn('fast');
 		this.$previewContainer.fadeOut('fast');
-		this.$container.animate({ height: expandedContainerHeight }, 'fast', $.proxy(function() {
+		this.$container.velocity({ height: expandedContainerHeight }, 'fast', $.proxy(function() {
 			this.$container.height('auto');
 		}, this));
 
@@ -598,7 +598,7 @@ var MatrixBlock = Garnish.Base.extend(
 
 	selfDestruct: function()
 	{
-		this.$container.animate(this.matrix.getHiddenBlockCss(this.$container), 'fast', $.proxy(function()
+		this.$container.velocity(this.matrix.getHiddenBlockCss(this.$container), 'fast', $.proxy(function()
 		{
 			this.$container.remove();
 			this.matrix.updateAddBlockBtn();

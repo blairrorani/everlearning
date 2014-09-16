@@ -1,5 +1,7 @@
 @charset "UTF-8";
 /* RTL stuff */
+#verifypasswordmodal { width: 350px; }
+
 #verifypasswordmodal .buttons { margin-top: 1em; }
 
 #verifypasswordmodal .buttons .spinner { position: absolute; top: 0; }

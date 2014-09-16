@@ -161,6 +161,10 @@ class TemplatesController extends BaseController
 			{
 				$template = $prefix.$code;
 			}
+			else if ($code == 503 && craft()->templates->doesTemplateExist($prefix.'offline'))
+			{
+				$template = $prefix.'offline';
+			}
 			else if (craft()->templates->doesTemplateExist($prefix.'error'))
 			{
 				$template = $prefix.'error';

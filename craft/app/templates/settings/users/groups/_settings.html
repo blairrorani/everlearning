@@ -29,9 +29,11 @@
 
 
 {% set content %}
-	<form method="post" accept-charset="UTF-8" data-saveshortcut="1">
+	<form method="post" accept-charset="UTF-8" data-saveshortcut>
 		<input type="hidden" name="action" value="userSettings/saveGroup">
 		<input type="hidden" name="redirect" value="settings/users">
+		{{ getCsrfInput() }}
+
 		{% if not isNewGroup %}<input type="hidden" name="groupId" value="{{ group.id }}">{% endif %}
 
 		{{ forms.textField({

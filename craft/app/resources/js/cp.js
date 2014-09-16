@@ -14,6 +14,8 @@
  */
 var CP = Garnish.Base.extend(
 {
+	authManager: null,
+
 	$alerts: null,
 	$header: null,
 	$headerActionsList: null,
@@ -48,6 +50,12 @@ var CP = Garnish.Base.extend(
 
 	init: function()
 	{
+		// Is this session going to expire?
+		if (Craft.authTimeout != 0)
+		{
+			this.authManager = new Craft.AuthManager();
+		}
+
 		// Find all the key elements
 		this.$alerts = $('#alerts');
 		this.$header = $('#header');
@@ -138,7 +146,7 @@ var CP = Garnish.Base.extend(
 		}
 
 		// Listen for save shortcuts in primary forms
-		var $primaryForm = $('form[data-saveshortcut="1"]:first');
+		var $primaryForm = $('form[data-saveshortcut]:first');
 
 		if ($primaryForm.length == 1)
 		{
@@ -165,7 +173,7 @@ var CP = Garnish.Base.extend(
 		Garnish.$win.on('load', $.proxy(function()
 		{
 			// Look for forms that we should watch for changes on
-			this.$confirmUnloadForms = $('form[data-confirm-unload="1"]');
+			this.$confirmUnloadForms = $('form[data-confirm-unload]');
 
 			if (this.$confirmUnloadForms.length)
 			{
@@ -454,7 +462,7 @@ var CP = Garnish.Base.extend(
 
 			var height = this.$alerts.height();
 
-			this.$alerts.height(0).animate({ height: height }, 'fast', $.proxy(function()
+			this.$alerts.height(0).velocity({ height: height }, 'fast', $.proxy(function()
 			{
 				this.$alerts.height('auto');
 			}, this));
@@ -593,6 +601,8 @@ var CP = Garnish.Base.extend(
 
 		this.trackTaskProgressTimeout = setTimeout($.proxy(function()
 		{
+			this.trackTaskProgressTimeout = null;
+
 			Craft.queueActionRequest('tasks/getRunningTaskInfo', $.proxy(function(taskInfo, textStatus)
 			{
 				if (textStatus == 'success')
@@ -646,6 +656,7 @@ var CP = Garnish.Base.extend(
 			{
 				this.taskProgressIcon.hideFailMode();
 				this.taskProgressIcon.complete();
+				delete this.taskProgressIcon;
 			}
 		}
 	},

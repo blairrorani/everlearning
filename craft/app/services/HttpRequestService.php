@@ -4,7 +4,7 @@ namespace Craft;
 /**
  * HttpRequestService provides APIs for getting information about the current HTTP request.
  *
- * An instance of HttpRequestService is globally accessible in Craft via {@link WebApp::entries `craft()->request`}.
+ * An instance of HttpRequestService is globally accessible in Craft via {@link WebApp::request `craft()->request`}.
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
@@ -83,6 +83,11 @@ class HttpRequestService extends \CHttpRequest
 	 */
 	private $_ipAddress;
 
+	/**
+	 * @var
+	 */
+	private $_cookies;
+
 	// Public Methods
 	// =========================================================================
 
@@ -93,6 +98,16 @@ class HttpRequestService extends \CHttpRequest
 	 */
 	public function init()
 	{
+		// Is CSRF protection enabled?
+		if (craft()->config->get('enableCsrfProtection') === true)
+		{
+			$this->enableCsrfValidation = true;
+
+			// Grab the token name.
+			$this->csrfTokenName = craft()->config->get('csrfTokenName');
+		}
+
+		// Now initialize Yii's CHttpRequest.
 		parent::init();
 
 		// There is no path.
@@ -314,19 +329,15 @@ class HttpRequestService extends \CHttpRequest
 	}
 
 	/**
-	 * Returns the MIME type that should probably be returned for the current request.
+	 * Returns the MIME type that is going to be included in the response via the Content-Type header.
 	 *
-	 * @return string The MIME type.
+	 * @return string
+	 * @deprecated Deprecated in 2.2. Use {@link HeaderHelper::getMimeType()} instead.
 	 */
 	public function getMimeType()
 	{
-		if (!$this->_mimeType)
-		{
-			$extension = IOHelper::getExtension($this->getPath(), 'html');
-			$this->_mimeType = IOHelper::getMimeTypeByExtension('.'.$extension);
-		}
-
-		return $this->_mimeType;
+		// TODO: Call the deprecator here in Craft 3.0
+		return HeaderHelper::getMimeType();
 	}
 
 	/**
@@ -531,6 +542,7 @@ class HttpRequestService extends \CHttpRequest
 	 *
 	 * @param string $name The dot-delimited name of the param to be fetched.
 	 *
+	 * @throws HttpException
 	 * @return mixed The value of the corresponding param, or $defaultValue if that value didn’t exist.
 	 */
 	public function getRequiredParam($name)
@@ -592,33 +604,33 @@ class HttpRequestService extends \CHttpRequest
 	 */
 	public function getBrowserLanguages()
 	{
-		if ($this->_browserLanguages === null)
+		if (!isset($this->_browserLanguages))
 		{
-			if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE']) && ($n = preg_match_all('/([\w\-_]+)\s*(;\s*q\s*=\s*(\d*\.\d*))?/', $_SERVER['HTTP_ACCEPT_LANGUAGE'], $matches)) > 0)
-			{
-				$languages = array();
+			$this->_browserLanguages = array();
 
-				for ($i = 0; $i < $n; ++$i)
+			if (isset($_SERVER['HTTP_ACCEPT_LANGUAGE']) && preg_match_all('/([\w\-_]+)\s*(?:;\s*q\s*=\s*(\d*\.\d*))?/', $_SERVER['HTTP_ACCEPT_LANGUAGE'], $matches, PREG_SET_ORDER))
+			{
+				$weights = array();
+
+				foreach ($matches as $match)
 				{
-					$languages[$matches[1][$i]] = empty($matches[3][$i]) ? 1.0 : floatval($matches[3][$i]);
+					$this->_browserLanguages[] = LocaleData::getCanonicalID($match[1]);
+					$weights[] = !empty($match[2]) ? floatval($match[2]) : 1;
 				}
 
-				// Sort by it's weight.
-				arsort($languages);
-
-				foreach ($languages as $language => $pref)
-				{
-					$this->_browserLanguages[] = LocaleData::getCanonicalID($language);
-				}
-			}
-
-			if ($this->_browserLanguages === null)
-			{
-				return false;
+				// Sort the languages by their weight
+				array_multisort($weights, SORT_NUMERIC, SORT_DESC, $this->_browserLanguages);
 			}
 		}
 
-		return $this->_browserLanguages;
+		if ($this->_browserLanguages)
+		{
+			return $this->_browserLanguages;
+		}
+		else
+		{
+			return false;
+		}
 	}
 
 	/**
@@ -807,13 +819,32 @@ class HttpRequestService extends \CHttpRequest
 	 *
 	 * @param string $name The cookie name.
 	 *
-	 * @return \CHttpCookie|null The cookie, or `null` if it didn’t exist.
+	 * @return HttpCookie|null The cookie, or `null` if it didn’t exist.
 	 */
 	public function getCookie($name)
 	{
 		if (isset($this->cookies[$name]))
 		{
 			return $this->cookies[$name];
+		}
+	}
+
+	/**
+	 * Returns the cookie collection. The result can be used like an associative array. Adding {@link HttpCookie} objects
+	 * to the collection will send the cookies to the client; and removing the objects from the collection will delete
+	 * those cookies on the client.
+	 *
+	 * @return CookieCollection The cookie collection.
+	 */
+	public function getCookies()
+	{
+		if ($this->_cookies !== null)
+		{
+			return $this->_cookies;
+		}
+		else
+		{
+			return $this->_cookies = new CookieCollection($this);
 		}
 	}
 
@@ -830,6 +861,16 @@ class HttpRequestService extends \CHttpRequest
 		{
 			unset($this->cookies[$name]);
 		}
+	}
+
+	/**
+	 * Returns whether this is a GET request.
+	 *
+	 * @return bool Whether this is a GET request.
+	 */
+	public function getIsGetRequest()
+	{
+		return ($this->getRequestType() == 'GET');
 	}
 
 	// Rename getIsX() => isX() functions for consistency
@@ -874,6 +915,14 @@ class HttpRequestService extends \CHttpRequest
 	public function isDeleteViaPostRequest()
 	{
 		return $this->getIsDeleteViaPostRequest();
+	}
+
+	/**
+	 * Alias of {@link getIsGetRequest()}.
+	 */
+	public function isGetRequest()
+	{
+		return $this->getIsGetRequest();
 	}
 
 	/**
@@ -1084,17 +1133,35 @@ class HttpRequestService extends \CHttpRequest
 	 * @param string|null $content
 	 *
 	 * @see http://stackoverflow.com/a/141026
+	 * @throws Exception An exception will be thrown if content has already been output.
 	 * @return null
 	 */
 	public function close($content = '')
 	{
+		// Make sure nothing has been output yet
+		if (headers_sent())
+		{
+			throw new Exception(Craft::t('HttpRequestService::close() cannot be called after content has been output.'));
+		}
+
 		// Prevent the script from ending when the browser closes the connection
 		ignore_user_abort(true);
 
-		// Discard any current OB content
-		if (ob_get_length() !== false)
+		// Prepend any current OB content
+		while (ob_get_length() !== false)
 		{
-			ob_end_clean();
+			// If ob_start() didn't have the PHP_OUTPUT_HANDLER_CLEANABLE flag, ob_get_clean() will cause a PHP notice
+			// and return false.
+			$obContent = @ob_get_clean();
+
+			if ($obContent !== false)
+			{
+				$content = $obContent . $content;
+			}
+			else
+			{
+				break;
+			}
 		}
 
 		// Send the content
@@ -1103,13 +1170,42 @@ class HttpRequestService extends \CHttpRequest
 		$size = ob_get_length();
 
 		// Tell the browser to close the connection
-		header('Connection: close');
-		header('Content-Length: '.$size);
+		HeaderHelper::setHeader(array(
+			'Connection'     => 'close',
+			'Content-Length' => $size
+		));
 
 		// Output the content, flush it to the browser, and close out the session
 		ob_end_flush();
 		flush();
 		session_write_close();
+	}
+
+	// Protected Methods
+	// =========================================================================
+
+	/**
+	 * Creates a cookie with a randomly generated CSRF token. Initial values specified in {@link csrfCookie} will be
+	 * applied to the generated cookie.
+	 *
+	 * @return HttpCookie the generated cookie
+	 */
+	protected function createCsrfCookie()
+	{
+		$cookie = new HttpCookie($this->csrfTokenName, sha1(uniqid(mt_rand(), true)));
+
+		if (is_array($this->csrfCookie))
+		{
+			foreach ($this->csrfCookie as $name => $value)
+			{
+				$cookie->$name = $value;
+			}
+		}
+
+		// Set to HTTP only
+		$cookie->httpOnly = true;
+
+		return $cookie;
 	}
 
 	// Private Methods
@@ -1138,59 +1234,65 @@ class HttpRequestService extends \CHttpRequest
 			return;
 		}
 
-		$resourceTrigger = craft()->config->getResourceTrigger();
-		$actionTrigger = craft()->config->get('actionTrigger');
-		$frontEndLoginPath = trim(craft()->config->getLocalized('loginPath'), '/');
-		$frontEndLogoutPath = trim(craft()->config->getLocalized('logoutPath'), '/');
-		$frontEndSetPasswordPath = trim(craft()->config->getLocalized('setPasswordPath'), '/');
-		$cpLoginPath = craft()->config->getCpLoginPath();
-		$cpLogoutPath = craft()->config->getCpLogoutPath();
-		$cpSetPasswordPath = craft()->config->getCpSetPasswordPath();
-
-		$firstSegment = $this->getSegment(1);
-
-		// If there's a token in the query string, then that should take
-		// precedence over everything else
+		// If there's a token in the query string, then that should take precedence over everything else
 		if (!$this->getQuery(craft()->config->get('tokenParam')))
 		{
-			// If the first path segment is the resource trigger word, it's a resource request.
-			if ($firstSegment === $resourceTrigger)
+			$firstSegment = $this->getSegment(1);
+
+			// Is this a resource request?
+			if ($firstSegment == craft()->config->getResourceTrigger())
 			{
 				$this->_isResourceRequest = true;
 			}
-
-			// If the first path segment is the action trigger word, or the logout trigger word (special case), it's an
-			// action request
-			else if ($firstSegment === $actionTrigger || (in_array($this->_path, array($frontEndLoginPath, $cpLoginPath, $frontEndSetPasswordPath, $cpSetPasswordPath, $frontEndLogoutPath, $cpLogoutPath)) && !$this->getParam('action')))
+			else
 			{
-				$this->_isActionRequest = true;
-
-				if (in_array($this->_path, array($cpLoginPath, $frontEndLoginPath)))
+				// Is this an action request?
+				if ($this->_isCpRequest)
 				{
-					$this->_actionSegments = array('users', 'login');
-				}
-				else if (in_array($this->_path, array($frontEndSetPasswordPath, $cpSetPasswordPath)))
-				{
-					$this->_actionSegments = array('users', 'setpassword');
-				}
-				else if (in_array($this->_path, array($frontEndLogoutPath, $cpLogoutPath)))
-				{
-					$this->_actionSegments = array('users', 'logout');
+					$loginPath       = craft()->config->getCpLoginPath();
+					$logoutPath      = craft()->config->getCpLogoutPath();
+					$setPasswordPath = craft()->config->getCpSetPasswordPath();
 				}
 				else
 				{
-					$this->_actionSegments = array_slice($this->_segments, 1);
+					$loginPath       = trim(craft()->config->getLocalized('loginPath'), '/');
+					$logoutPath      = trim(craft()->config->getLocalized('logoutPath'), '/');
+					$setPasswordPath = trim(craft()->config->getLocalized('setPasswordPath'), '/');
 				}
-			}
 
-			// If there's a non-empty 'action' param (either in the query string or post data), it's an action request
-			else if (($action = $this->getParam('action')) !== null)
-			{
-				$this->_isActionRequest = true;
+				if (
+					($specialPath = in_array($this->_path, array($loginPath, $logoutPath, $setPasswordPath))) ||
+					($triggerMatch = ($firstSegment == craft()->config->get('actionTrigger') && count($this->_segments) > 1)) ||
+					($actionParam = $this->getParam('action')) !== null
+				)
+				{
+					$this->_isActionRequest = true;
 
-				// Sanitize
-				$action = $this->decodePathInfo($action);
-				$this->_actionSegments = array_filter(explode('/', $action));
+					if ($specialPath)
+					{
+						if ($this->_path == $loginPath)
+						{
+							$this->_actionSegments = array('users', 'login');
+						}
+						else if ($this->_path == $logoutPath)
+						{
+							$this->_actionSegments = array('users', 'logout');
+						}
+						else
+						{
+							$this->_actionSegments = array('users', 'setpassword');
+						}
+					}
+					else if ($triggerMatch)
+					{
+						$this->_actionSegments = array_slice($this->_segments, 1);
+					}
+					else
+					{
+						$actionParam = $this->decodePathInfo($actionParam);
+						$this->_actionSegments = array_filter(explode('/', $actionParam));
+					}
+				}
 			}
 		}
 

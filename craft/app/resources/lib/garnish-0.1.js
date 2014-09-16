@@ -273,6 +273,17 @@ Garnish = $.extend(Garnish, {
 	},
 
 	/**
+	 * Returns whether an element has an attribute.
+	 *
+	 * @see http://stackoverflow.com/questions/1318076/jquery-hasattr-checking-to-see-if-there-is-an-attribute-on-an-element/1318091#1318091
+	 */
+	hasAttr: function(elem, attr)
+	{
+		var val = $(elem).attr(attr);
+		return (typeof val != 'undefined' && val !== false);
+	},
+
+	/**
 	 * Returns whether something is a text node.
 	 *
 	 * @param object elem
@@ -453,7 +464,7 @@ Garnish = $.extend(Garnish, {
 				{
 					Garnish.shake._properties = {};
 					Garnish.shake._properties[prop] = startingPoint + (i % 2 ? -1 : 1) * (10-i);
-					$elem.animate(Garnish.shake._properties, Garnish.SHAKE_STEP_DURATION);
+					$elem.velocity(Garnish.shake._properties, Garnish.SHAKE_STEP_DURATION);
 				}, (Garnish.SHAKE_STEP_DURATION * i));
 			})(i);
 		}
@@ -1835,7 +1846,7 @@ Garnish.Drag = Garnish.BaseDrag.extend({
 			(
 				function($draggee, $helper)
 				{
-					$helper.animate({left: draggeeOffset.left, top: draggeeOffset.top}, 'fast',
+					$helper.velocity({left: draggeeOffset.left, top: draggeeOffset.top}, 'fast',
 						function()
 						{
 							$draggee.css('visibility', 'inherit');
@@ -2692,7 +2703,7 @@ Garnish.LightSwitch = Garnish.Base.extend({
 
 	turnOn: function()
 	{
-		this.$innerContainer.stop().animate({marginLeft: 0}, 'fast');
+		this.$innerContainer.stop().velocity({marginLeft: 0}, 'fast');
 		this.$input.val(Garnish.Y_AXIS);
 		this.on = true;
 		this.onChange();
@@ -2701,19 +2712,19 @@ Garnish.LightSwitch = Garnish.Base.extend({
 		this.$toggleTarget.height('auto');
 		var height = this.$toggleTarget.height();
 		this.$toggleTarget.height(0);
-		this.$toggleTarget.stop().animate({height: height}, 'fast', $.proxy(function() {
+		this.$toggleTarget.stop().velocity({height: height}, 'fast', $.proxy(function() {
 			this.$toggleTarget.height('auto');
 		}, this));
 	},
 
 	turnOff: function()
 	{
-		this.$innerContainer.stop().animate({marginLeft: Garnish.LightSwitch.offMargin}, 'fast');
+		this.$innerContainer.stop().velocity({marginLeft: Garnish.LightSwitch.offMargin}, 'fast');
 		this.$input.val('');
 		this.on = false;
 		this.onChange();
 
-		this.$toggleTarget.stop().animate({height: 0}, 'fast');
+		this.$toggleTarget.stop().velocity({height: 0}, 'fast');
 	},
 
 	toggle: function(ev)
@@ -2858,6 +2869,20 @@ Garnish.Menu = Garnish.Base.extend({
 	$options: null,
 	$trigger: null,
 
+	_windowWidth: null,
+	_windowHeight: null,
+	_windowScrollLeft: null,
+	_windowScrollTop: null,
+
+	_triggerOffset: null,
+	_triggerWidth: null,
+	_triggerHeight: null,
+	_triggerOffsetRight: null,
+	_triggerOffsetBottom: null,
+
+	_menuWidth: null,
+	_menuHeight: null,
+
 	/**
 	 * Constructor
 	 */
@@ -2866,8 +2891,8 @@ Garnish.Menu = Garnish.Base.extend({
 		this.setSettings(settings, Garnish.Menu.defaults);
 
 		this.$container = $(container);
-		this.$options = this.$container.find('a');
-		this.$options.data('menu', this);
+		this.$options = $();
+		this.addOptions(this.$container.find('a'));
 
 		if (this.settings.attachToElement)
 		{
@@ -2879,79 +2904,86 @@ Garnish.Menu = Garnish.Base.extend({
 		{
 			ev.stopPropagation();
 		});
+	},
 
-		// Listen for option clicks
-		this.addListener(this.$options, 'click', 'selectOption');
+	addOptions: function($options)
+	{
+		this.$options = this.$options.add($options);
+		$options.data('menu', this);
+		this.addListener($options, 'click', 'selectOption');
 	},
 
 	setPositionRelativeToTrigger: function()
 	{
-		var windowHeight = Garnish.$win.height(),
-			windowScrollTop = Garnish.$win.scrollTop(),
+		this._windowWidth = Garnish.$win.width();
+		this._windowHeight = Garnish.$win.height();
+		this._windowScrollLeft = Garnish.$win.scrollLeft();
+		this._windowScrollTop = Garnish.$win.scrollTop();
 
-			triggerOffset = this.$trigger.offset(),
-			triggerWidth = this.$trigger.outerWidth(),
-			triggerHeight = this.$trigger.outerHeight(),
-			triggerOffsetBottom = triggerOffset.top + triggerHeight,
-			triggerOffsetTop = triggerOffset.top,
+		this._triggerOffset = this.$trigger.offset();
+		this._triggerWidth = this.$trigger.outerWidth();
+		this._triggerHeight = this.$trigger.outerHeight();
+		this._triggerOffsetRight = this._triggerOffset.left + this._triggerHeight;
+		this._triggerOffsetBottom = this._triggerOffset.top + this._triggerHeight;
 
-			menuHeight = this.$container.outerHeight(),
+		this.$container.css('minWidth', 0);
+		this.$container.css('minWidth', this._triggerWidth - (this.$container.outerWidth() - this.$container.width()));
 
-			bottomClearance = windowHeight + windowScrollTop - triggerOffsetBottom,
-			topClearance = triggerOffsetTop - windowScrollTop;
-
-		var css = {
-			minWidth: triggerWidth - (this.$container.outerWidth() - this.$container.width())
-		};
+		this._menuWidth = this.$container.outerWidth();
+		this._menuHeight = this.$container.outerHeight();
 
 		// Is there room for the menu below the trigger?
-		if (bottomClearance >= menuHeight || bottomClearance >= topClearance)
+		var topClearance = this._triggerOffset.top - this._windowScrollTop,
+			bottomClearance = this._windowHeight + this._windowScrollTop - this._triggerOffsetBottom;
+
+		if (bottomClearance >= this._menuHeight || bottomClearance >= topClearance)
 		{
-			css.top = triggerOffsetBottom;
+			this.$container.css('top', this._triggerOffsetBottom);
 		}
 		else
 		{
-			css.top = triggerOffsetTop - menuHeight;
+			this.$container.css('top', this._triggerOffset.top - this._menuHeight);
 		}
 
+		// Figure out how we're aliging it
 		var align = this.$container.data('align');
 
-		if (!align)
+		if (align != 'left' && align != 'center' && align != 'right')
 		{
 			align = 'left';
 		}
 
-		if (Garnish.rtl)
+		if (align == 'center')
 		{
-			if (align == 'left')
+			this._alignCenter();
+		}
+		else
+		{
+			// Figure out which options are actually possible
+			var rightClearance = this._windowWidth + this._windowScrollLeft - (this._triggerOffset.left + this._menuWidth),
+				leftClearance = this._triggerOffsetRight - this._menuWidth;
+
+			if (align == 'right' && leftClearance >= 0 || rightClearance < 0)
 			{
-				align = 'right';
+				this._alignRight();
 			}
-			else if (align == 'right')
+			else
 			{
-				align = 'left';
+				this._alignLeft();
 			}
 		}
 
-		switch (align)
-		{
-			case 'right':
-			{
-				css.right = Garnish.$win.width() - (triggerOffset.left + triggerWidth);
-				break;
-			}
-			case 'center':
-			{
-				css.left = Math.round((triggerOffset.left + triggerWidth / 2) - (this.$container.outerWidth() / 2));
-				break;
-			}
-			case 'left':
-			{
-				css.left = triggerOffset.left;
-			}
-		}
-
-		this.$container.css(css);
+		delete this._windowWidth;
+		delete this._windowHeight;
+		delete this._windowScrollLeft;
+		delete this._windowScrollTop;
+		delete this._triggerOffset;
+		delete this._triggerWidth;
+		delete this._triggerHeight;
+		delete this._triggerOffsetRight;
+		delete this._triggerOffsetBottom;
+		delete this._menuWidth;
+		delete this._menuHeight;
 	},
 
 	show: function()
@@ -2983,6 +3015,34 @@ Garnish.Menu = Garnish.Base.extend({
 		this.settings.onOptionSelect(ev.currentTarget);
 		this.trigger('optionselect', { selectedOption: ev.currentTarget });
 		this.hide();
+	},
+
+	_alignLeft: function()
+	{
+		this.$container.css({
+			left: this._triggerOffset.left,
+			right: 'auto'
+		});
+	},
+
+	_alignRight: function()
+	{
+		this.$container.css({
+			right: this._windowWidth - (this._triggerOffset.left + this._triggerWidth),
+			left: 'auto'
+		});
+	},
+
+	_alignCenter: function()
+	{
+		var left = Math.round((this._triggerOffset.left + this._triggerWidth / 2) - (this._menuWidth / 2));
+
+		if (left < 0)
+		{
+			left = 0;
+		}
+
+		this.$container.css('left', left);
 	}
 
 },
@@ -3576,25 +3636,32 @@ Garnish.Modal = Garnish.Base.extend({
 		{
 			// (settings)
 			settings = container;
-            container = null;
+			container = null;
 		}
 
 		this.setSettings(settings, Garnish.Modal.defaults);
 
-        // If container already set, drop the shade below it.
-        if (container)
-        {
-            this.$shade = $('<div class="modal-shade"/>').insertBefore(container);
-        }
-        else
-        {
-            this.$shade = $('<div class="modal-shade"/>').appendTo(Garnish.$bod);
-        }
+		// Create the shade
+		this.$shade = $('<div class="'+this.settings.shadeClass+'"/>');
 
-        if (container)
+		// If the container is already set, drop the shade below it.
+		if (container)
+		{
+			this.$shade.insertBefore(container);
+		}
+		else
+		{
+			this.$shade.appendTo(Garnish.$bod);
+		}
+
+		if (container)
 		{
 			this.setContainer(container);
-			this.show();
+
+			if (this.settings.autoShow)
+			{
+				this.show();
+			}
 		}
 
 		Garnish.Modal.instances.push(this);
@@ -3643,7 +3710,7 @@ Garnish.Modal = Garnish.Base.extend({
 
 	show: function()
 	{
-        // Close other modals as needed
+		// Close other modals as needed
 		if (this.settings.closeOtherModals && Garnish.Modal.visibleModal && Garnish.Modal.visibleModal != this)
 		{
 			Garnish.Modal.visibleModal.hide();
@@ -3661,11 +3728,18 @@ Garnish.Modal = Garnish.Base.extend({
 			this.$shade.fadeIn(50);
 			this.$container.delay(50).fadeIn($.proxy(this, 'onFadeIn'));
 
-			this.addListener(this.$shade, 'click', 'hide');
+			if (this.settings.hideOnShadeClick)
+			{
+				this.addListener(this.$shade, 'click', 'hide');
+			}
+
 			this.addListener(Garnish.$win, 'resize', 'updateSizeAndPosition');
 		}
 
-		Garnish.escManager.register(this, 'hide');
+		if (this.settings.hideOnEsc)
+		{
+			Garnish.escManager.register(this, 'hide');
+		}
 
 		if (!this.visible)
 		{
@@ -3673,6 +3747,17 @@ Garnish.Modal = Garnish.Base.extend({
 			Garnish.Modal.visibleModal = this;
 
 			this.settings.onShow();
+		}
+	},
+
+	quickShow: function()
+	{
+		this.show();
+
+		if (this.$container)
+		{
+			this.$container.finish();
+			this.$shade.finish();
 		}
 	},
 
@@ -3688,14 +3773,34 @@ Garnish.Modal = Garnish.Base.extend({
 			this.$container.fadeOut('fast');
 			this.$shade.fadeOut('fast', $.proxy(this, 'onFadeOut'));
 
-			this.removeListener(this.$shade, 'click');
+			if (this.settings.hideOnShadeClick)
+			{
+				this.removeListener(this.$shade, 'click');
+			}
+
 			this.removeListener(Garnish.$win, 'resize');
 		}
 
 		this.visible = false;
 		Garnish.Modal.visibleModal = null;
-		Garnish.escManager.unregister(this);
+
+		if (this.settings.hideOnEsc)
+		{
+			Garnish.escManager.unregister(this);
+		}
+
 		this.settings.onHide();
+	},
+
+	quickHide: function()
+	{
+		this.hide();
+
+		if (this.$container)
+		{
+			this.$container.finish();
+			this.$shade.finish();
+		}
 	},
 
 	updateSizeAndPosition: function()
@@ -3827,6 +3932,7 @@ Garnish.Modal = Garnish.Base.extend({
 {
 	relativeElemPadding: 8,
 	defaults: {
+		autoShow: true,
 		draggable: false,
 		dragHandleSelector: null,
 		resizable: false,
@@ -3834,7 +3940,10 @@ Garnish.Modal = Garnish.Base.extend({
 		onHide: $.noop,
 		onFadeIn: $.noop,
 		onFadeOut: $.noop,
-        closeOtherModals: true
+		closeOtherModals: true,
+		hideOnEsc: true,
+		hideOnShadeClick: true,
+		shadeClass: 'modal-shade'
 	},
 	instances: [],
 	visibleModal: null
@@ -3849,20 +3958,36 @@ Garnish.NiceText = Garnish.Base.extend({
 	$input: null,
 	$hint: null,
 	$stage: null,
+	$charsLeft: null,
 	autoHeight: null,
-	focussed: false,
+	maxLength: null,
+	showCharsLeft: false,
 	showingHint: false,
 	val: null,
 	inputBoxSizing: 'content-box',
 	height: null,
 	minHeight: null,
-	interval: null,
 	initialized: false,
 
 	init: function(input, settings)
 	{
 		this.$input = $(input);
 		this.settings = $.extend({}, Garnish.NiceText.defaults, settings);
+
+		this.maxLength = this.$input.attr('maxlength');
+
+		if (this.maxLength)
+		{
+			this.maxLength = parseInt(this.maxLength);
+		}
+
+		if (this.maxLength && (this.settings.showCharsLeft || Garnish.hasAttr(this.$input, 'data-show-chars-left')))
+		{
+			this.showCharsLeft = true;
+
+			// Remove the maxlength attribute
+			this.$input.removeAttr('maxlength');
+		}
 
 		// Is this already a transparent text input?
 		if (this.$input.data('nicetext'))
@@ -3876,6 +4001,7 @@ Garnish.NiceText = Garnish.Base.extend({
 		this.getVal();
 
 		this.autoHeight = (this.settings.autoHeight && this.$input.prop('nodeName') == 'TEXTAREA');
+
 		if (this.autoHeight)
 		{
 			this.minHeight = this.getHeightForValue('');
@@ -3910,9 +4036,13 @@ Garnish.NiceText = Garnish.Base.extend({
 			});
 		}
 
-		this.addListener(this.$input, 'focus', 'onFocus');
-		this.addListener(this.$input, 'blur', 'onBlur');
-		this.addListener(this.$input, 'keydown', 'onKeyDown');
+		if (this.showCharsLeft)
+		{
+			this.$charsLeft = $('<div class="'+this.settings.charsLeftClass+'"/>').insertAfter(this.$input);
+			this.updateCharsLeft();
+		}
+
+		this.addListener(this.$input, 'textchange', 'onTextChange');
 
 		this.initialized = true;
 	},
@@ -3935,31 +4065,31 @@ Garnish.NiceText = Garnish.Base.extend({
 		this.showingHint = false;
 	},
 
-	checkInput: function()
+	onTextChange: function()
 	{
-		// Has the value changed?
-		var changed = (this.val !== this.getVal());
-		if (changed)
-		{
-			if (this.$hint)
-			{
-				if (this.showingHint && this.val)
-				{
-					this.hideHint();
-				}
-				else if (!this.showingHint && !this.val)
-				{
-					this.showHint();
-				}
-			}
+		this.getVal();
 
-			if (this.autoHeight)
+		if (this.$hint)
+		{
+			if (this.showingHint && this.val)
 			{
-				this.updateHeight();
+				this.hideHint();
+			}
+			else if (!this.showingHint && !this.val)
+			{
+				this.showHint();
 			}
 		}
 
-		return changed;
+		if (this.autoHeight)
+		{
+			this.updateHeight();
+		}
+
+		if (this.showCharsLeft)
+		{
+			this.updateCharsLeft();
+		}
 	},
 
 	buildStage: function()
@@ -4075,24 +4205,19 @@ Garnish.NiceText = Garnish.Base.extend({
 		this.settings.onHeightChange();
 	},
 
-	onFocus: function()
+	updateCharsLeft: function()
 	{
-		this.focussed = true;
-		this.interval = setInterval($.proxy(this, 'checkInput'), Garnish.NiceText.interval);
-		this.checkInput();
-	},
+		this.updateCharsLeft._charsLeft = this.maxLength - this.val.length;
+		this.$charsLeft.text(this.updateCharsLeft._charsLeft);
 
-	onBlur: function()
-	{
-		this.focussed = false;
-		clearInterval(this.interval);
-
-		this.checkInput();
-	},
-
-	onKeyDown: function()
-	{
-		setTimeout($.proxy(this, 'checkInput'), 1);
+		if (this.updateCharsLeft._charsLeft >= 0)
+		{
+			this.$charsLeft.removeClass(this.settings.negativeCharsLeftClass);
+		}
+		else
+		{
+			this.$charsLeft.addClass(this.settings.negativeCharsLeftClass);
+		}
 	},
 
 	destroy: function()
@@ -4113,8 +4238,11 @@ Garnish.NiceText = Garnish.Base.extend({
 	interval: 100,
 	hintFadeDuration: 50,
 	defaults: {
-		autoHeight:     true,
-		onHeightChange: $.noop
+		autoHeight:             true,
+		showCharsLeft:          false,
+		charsLeftClass:         'chars-left',
+		negativeCharsLeftClass: 'negative-chars-left',
+		onHeightChange:         $.noop
 	}
 });
 

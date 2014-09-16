@@ -13,6 +13,11 @@ namespace Craft;
  */
 class LocaleData extends \CLocale
 {
+	// Properties
+	// =========================================================================
+
+	private $_territories;
+
 	// Public Methods
 	// =========================================================================
 
@@ -93,6 +98,31 @@ class LocaleData extends \CLocale
 		}
 
 		return $this->_dateFormatter;
+	}
+
+	/**
+	 * Returns an array of territories for the locale instance or null, if none
+	 * exist.
+	 *
+	 * @return string[]|null An array of all territories for the given locale,
+	 *                       or null, if none exist.
+	 */
+	public function getAllTerritories()
+	{
+		if (!$this->_territories)
+		{
+			if (isset($this->_data['territories']))
+			{
+				$territories = $this->_data['territories'];
+
+				foreach ($territories as $key => $territory)
+				{
+					$this->_territories[] = $this->getTerritory($key);
+				}
+			}
+		}
+
+		return $this->_territories;
 	}
 
 }

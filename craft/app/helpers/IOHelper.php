@@ -1,5 +1,4 @@
 <?php
-
 namespace Craft;
 
 /**
@@ -358,6 +357,7 @@ class IOHelper
 	 * A wrapper for {@link \CFileHelper::getMimeTypeByExtension}.
 	 *
 	 * @param  string $path The path to test.
+	 *
 	 * @return string       The mime type.
 	 */
 	public static function getMimeTypeByExtension($path)
@@ -1415,6 +1415,7 @@ class IOHelper
 		return array(
 			'access'      => array('label' => Craft::t('Access'),      'extensions' => array('adp','accdb','mdb','accde','accdt','accdr')),
 			'audio'       => array('label' => Craft::t('Audio'),       'extensions' => array('3gp','aac','act','aif','aiff','aifc','alac','amr','au','dct','dss','dvf','flac','gsm','iklax','ivs','m4a','m4p','mmf','mp3','mpc','msv','oga','ogg','opus','ra','tta','vox','wav','wma','wv')),
+			'compressed'  => array('label' => Craft::t('Compressed'),  'extensions' => array('bz2', 'tar', 'gz', '7z', 's7z', 'dmg', 'rar', 'zip', 'tgz', 'zipx')),
 			'excel'       => array('label' => Craft::t('Excel'),       'extensions' => array('xls', 'xlsx','xlsm','xltx','xltm')),
 			'flash'       => array('label' => Craft::t('Flash'),       'extensions' => array('fla','flv','swf','swt','swc')),
 			'html'        => array('label' => Craft::t('HTML'),        'extensions' => array('html','htm')),
@@ -1468,19 +1469,20 @@ class IOHelper
 	{
 		if (!IOHelper::folderExists($folderPath, $suppressErrors))
 		{
-			IOHelper::createFolder($folderPath, static::getWritableFolderPermissions(), $suppressErrors);
+			IOHelper::createFolder($folderPath, craft()->config->get('defaultFolderPermissions'), $suppressErrors);
 		}
 	}
 
 	/**
-	 * Clean a filename.
+	 * Cleans a filename.
 	 *
 	 * @param string $fileName
 	 * @param bool   $onlyAlphaNumeric
+	 * @param string $separator
 	 *
 	 * @return mixed
 	 */
-	public static function cleanFilename($fileName, $onlyAlphaNumeric = false)
+	public static function cleanFilename($fileName, $onlyAlphaNumeric = false, $separator = '-')
 	{
 		$disallowedChars = array('â€”', 'â€“', '&#8216;', '&#8217;', '&#8220;', '&#8221;', '&#8211;', '&#8212;', '+', '%', '^', '~', '?', '[', ']', '/', '\\', '=', '<', '>', ':', ';', ',', '\'', '"', '&', '$', '#', '*', '(', ')', '|', '~', '`', '!', '{', '}');
 
@@ -1490,7 +1492,10 @@ class IOHelper
 		// Strip any characters not allowed.
 		$fileName = str_replace($disallowedChars, '', strip_tags($fileName));
 
-		$fileName = preg_replace('/[\s-]+/', '-', $fileName);
+		if (!is_null($separator))
+		{
+			$fileName = preg_replace('/(\s|'.preg_quote($separator).')+/', $separator, $fileName);
+		}
 
 		// Nuke any trailing or leading .-_
 		$fileName = trim($fileName, '.-_');
@@ -1529,6 +1534,8 @@ class IOHelper
 	/**
 	 * Gets the default folder permissions from the config service.
 	 *
+	 * @deprecated Deprecated in 2.2. Use
+	 *             {@link ConfigService::get() `craft()->config->get('defaultFolderPermissions')`} instead.
 	 * @return mixed
 	 */
 	public static function getDefaultFolderPermissions()
@@ -1537,23 +1544,27 @@ class IOHelper
 	}
 
 	/**
-	 * Gets the writable folder permissions from the config service.
-	 *
-	 * @return mixed
-	 */
-	public static function getWritableFolderPermissions()
-	{
-		return craft()->config->get('writableFolderPermissions');
-	}
-
-	/**
 	 * Gets the writable file permissions from the config service.
 	 *
+	 * @deprecated Deprecated in 2.2. Use
+	 *             {@link ConfigService::get() `craft()->config->get('defaultFilePermissions')`} instead.
 	 * @return mixed
 	 */
 	public static function getWritableFilePermissions()
 	{
-		return craft()->config->get('writableFilePermissions');
+		return craft()->config->get('defaultFilePermissions');
+	}
+
+	/**
+	 * Gets the writable folder permissions from the config service.
+	 *
+	 * @deprecated Deprecated in 2.2. Use
+	 *             {@link ConfigService::get() `craft()->config->get('defaultFolderPermissions')`} instead.
+	 * @return mixed
+	 */
+	public static function getWritableFolderPermissions()
+	{
+		return craft()->config->get('defaultFolderPermissions');
 	}
 
 	/**

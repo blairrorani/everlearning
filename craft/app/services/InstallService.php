@@ -220,7 +220,7 @@ class InstallService extends BaseApplicationComponent
 			'sourceId'     => array('column' => ColumnType::Int, 'null' => false),
 			'sourceLocale' => array('column' => ColumnType::Locale),
 			'targetId'     => array('column' => ColumnType::Int, 'null' => false),
-			'sortOrder'    => array('column' => ColumnType::TinyInt),
+			'sortOrder'    => array('column' => ColumnType::SmallInt),
 		));
 
 		craft()->db->createCommand()->createIndex('relations', 'fieldId,sourceId,sourceLocale,targetId', true);
@@ -262,7 +262,7 @@ class InstallService extends BaseApplicationComponent
 		Craft::log('Creating the searchindex table.');
 
 		// Taking the scenic route here so we can get to MysqlSchema's $engine argument
-		$table = DbHelper::addTablePrefix('searchindex');
+		$table = craft()->db->addTablePrefix('searchindex');
 
 		$columns = array(
 			'elementId' => DbHelper::generateColumnDefinition(array('column' => ColumnType::Int, 'null' => false)),
@@ -279,7 +279,7 @@ class InstallService extends BaseApplicationComponent
 
 		// Add the FULLTEXT index on `keywords`
 		craft()->db->createCommand()->setText('CREATE FULLTEXT INDEX ' .
-			craft()->db->quoteTableName(DbHelper::getIndexName('searchindex', 'keywords')).' ON ' .
+			craft()->db->quoteTableName(craft()->db->getIndexName('searchindex', 'keywords')).' ON ' .
 			craft()->db->quoteTableName($table).' ' .
 			'('.craft()->db->quoteColumnName('keywords').')'
 		)->execute();
@@ -297,7 +297,7 @@ class InstallService extends BaseApplicationComponent
 		Craft::log('Creating the templatecaches table.');
 
 		craft()->db->createCommand()->createTable('templatecaches', array(
-			'cacheKey'   => array('column' => ColumnType::Varchar, 'length' => 36, 'null' => false),
+			'cacheKey'   => array('column' => ColumnType::Varchar, 'null' => false),
 			'locale'     => array('column' => ColumnType::Locale, 'null' => false),
 			'path'       => array('column' => ColumnType::Varchar),
 			'expiryDate' => array('column' => ColumnType::DateTime, 'null' => false),
@@ -446,6 +446,8 @@ class InstallService extends BaseApplicationComponent
 
 		craft()->db->createCommand()->createTable('assettransformindex', array(
 			'fileId'       => array('maxLength' => 11, 'column' => ColumnType::Int, 'required' => true),
+			'filename'     => array('maxLength' => 255, 'column' => ColumnType::Varchar, 'required' => false),
+			'format'       => array('maxLength' => 255, 'column' => ColumnType::Varchar, 'required' => false),
 			'location'     => array('maxLength' => 255, 'column' => ColumnType::Varchar, 'required' => true),
 			'sourceId'     => array('maxLength' => 11, 'column' => ColumnType::Int, 'required' => false),
 			'fileExists'   => array('column' => ColumnType::Bool),

@@ -32,9 +32,10 @@ class Cache_Node extends \Twig_Node
 	public function compile(\Twig_Compiler $compiler)
 	{
 		$n = static::$_cacheCount++;
-		$key = StringHelper::randomString();
 
+		$conditions = $this->getNode('conditions');
 		$ignoreConditions = $this->getNode('ignoreConditions');
+		$key = $this->getNode('key');
 		$durationNum = $this->getAttribute('durationNum');
 		$durationUnit = $this->getAttribute('durationUnit');
 		$expiration = $this->getNode('expiration');
@@ -45,7 +46,14 @@ class Cache_Node extends \Twig_Node
 			->write("\$cacheService = \Craft\craft()->templateCache;\n")
 			->write("\$ignoreCache{$n} = (\Craft\craft()->request->isLivePreview() || \Craft\craft()->request->getToken()");
 
-		if ($ignoreConditions)
+		if ($conditions)
+		{
+			$compiler
+				->raw(' || !(')
+				->subcompile($conditions)
+				->raw(')');
+		}
+		else if ($ignoreConditions)
 		{
 			$compiler
 				->raw(' || (')
@@ -57,14 +65,27 @@ class Cache_Node extends \Twig_Node
 			->raw(");\n")
 			->write("if (!\$ignoreCache{$n}) {\n")
 			->indent()
-				->write("\$cacheBody{$n} = \$cacheService->getTemplateCache('{$key}', {$global});\n")
+				->write("\$cacheKey{$n} = ");
+
+		if ($key)
+		{
+			$compiler->subcompile($key);
+		}
+		else
+		{
+			$compiler->raw('"'.StringHelper::randomString().'"');
+		}
+
+		$compiler
+				->raw(";\n")
+				->write("\$cacheBody{$n} = \$cacheService->getTemplateCache(\$cacheKey{$n}, {$global});\n")
 			->outdent()
 			->write("}\n")
 			->write("if (empty(\$cacheBody{$n})) {\n")
 			->indent()
 				->write("if (!\$ignoreCache{$n}) {\n")
 				->indent()
-					->write("\$cacheService->startTemplateCache('{$key}');\n")
+					->write("\$cacheService->startTemplateCache(\$cacheKey{$n});\n")
 				->outdent()
 				->write("}\n")
 				->write("ob_start();\n")
@@ -72,7 +93,7 @@ class Cache_Node extends \Twig_Node
 				->write("\$cacheBody{$n} = ob_get_clean();\n")
 				->write("if (!\$ignoreCache{$n}) {\n")
 				->indent()
-					->write("\$cacheService->endTemplateCache('{$key}', {$global}, ");
+					->write("\$cacheService->endTemplateCache(\$cacheKey{$n}, {$global}, ");
 
 		if ($durationNum)
 		{

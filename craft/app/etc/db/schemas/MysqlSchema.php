@@ -17,6 +17,11 @@ class MysqlSchema extends \CMysqlSchema
 	// =========================================================================
 
 	/**
+	 * @var int The maximum length that objects' names can be.
+	 */
+	public $maxObjectNameLength = 64;
+
+	/**
 	 * @param $table
 	 * @param $column
 	 * @param $type
@@ -271,8 +276,9 @@ class MysqlSchema extends \CMysqlSchema
 	{
 		if (!$schema)
 		{
-			$likeSql = (craft()->db->tablePrefix ? ' LIKE \''.craft()->db->tablePrefix.'%\'' : '');
-			return craft()->db->createCommand()->setText('SHOW TABLES'.$likeSql)->queryColumn();
+			$connection = $this->getDbConnection();
+			$likeSql = ($connection->tablePrefix ? ' LIKE \''.$connection->tablePrefix.'%\'' : '');
+			return $connection->createCommand()->setText('SHOW TABLES'.$likeSql)->queryColumn();
 		}
 		else
 		{

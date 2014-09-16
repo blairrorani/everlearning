@@ -110,15 +110,15 @@ class ResourcesService extends BaseApplicationComponent
 							return false;
 						}
 
-						$size = IOHelper::cleanFilename($segs[2]);
+						$size = AssetsHelper::cleanAssetName($segs[2]);
 						// Looking for either a numeric size or "original" keyword
 						if (!is_numeric($size) && $size != "original")
 						{
 							return false;
 						}
 
-						$username = IOHelper::cleanFilename($segs[1]);
-						$filename = IOHelper::cleanFilename($segs[3]);
+						$username = AssetsHelper::cleanAssetName($segs[1]);
+						$filename = AssetsHelper::cleanAssetName($segs[3]);
 
 						$userPhotosPath = craft()->path->getUserPhotosPath().$username.'/';
 						$sizedPhotoFolder = $userPhotosPath.$size.'/';
@@ -182,12 +182,14 @@ class ResourcesService extends BaseApplicationComponent
 				case 'tempuploads':
 				{
 					array_shift($segs);
+
 					return craft()->path->getTempUploadsPath().implode('/', $segs);
 				}
 
 				case 'tempassets':
 				{
 					array_shift($segs);
+
 					return craft()->path->getAssetsTempSourcePath().implode('/', $segs);
 				}
 
@@ -205,6 +207,7 @@ class ResourcesService extends BaseApplicationComponent
 					}
 
 					$size = $segs[2];
+
 					return craft()->assetTransforms->getThumbServerPath($fileModel, $size);
 				}
 
@@ -232,7 +235,16 @@ class ResourcesService extends BaseApplicationComponent
 				{
 					try
 					{
-						$transformIndexModel = craft()->assetTransforms->getTransformIndexModelById((int) $segs[1]);
+						if (!empty($segs[1]))
+						{
+							$transformIndexModel = craft()->assetTransforms->getTransformIndexModelById((int) $segs[1]);
+						}
+
+						if (empty($transformIndexModel))
+						{
+							throw new HttpException(404);
+						}
+
 						$url = craft()->assetTransforms->ensureTransformUrlByIndexModel($transformIndexModel);
 					}
 					catch (Exception $exception)
@@ -349,6 +361,7 @@ class ResourcesService extends BaseApplicationComponent
 
 		// Normalize URLs in CSS files
 		$mimeType = IOHelper::getMimeTypeByExtension($realPath);
+
 		if (mb_strpos($mimeType, 'css') !== false)
 		{
 			$content = preg_replace_callback('/(url\(([\'"]?))(.+?)(\2\))/', array(&$this, '_normalizeCssUrl'), $content);

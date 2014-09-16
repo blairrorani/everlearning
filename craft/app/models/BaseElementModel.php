@@ -31,6 +31,11 @@ abstract class BaseElementModel extends BaseModel
 	/**
 	 * @var
 	 */
+	private $_fieldsByHandle;
+
+	/**
+	 * @var
+	 */
 	private $_contentPostLocation;
 
 	/**
@@ -133,11 +138,9 @@ abstract class BaseElementModel extends BaseModel
 		catch (\Exception $e)
 		{
 			// Is $name a field handle?
-			$field = $this->getFieldByHandle($name);
-
-			if ($field)
+			if ($this->getFieldByHandle($name))
 			{
-				return $this->_getPreppedContentForField($field);
+				return $this->getFieldValue($name);
 			}
 
 			// Fine, throw the exception
@@ -582,6 +585,8 @@ abstract class BaseElementModel extends BaseModel
 			$criteria = craft()->elements->getCriteria($this->elementType);
 			$criteria->prevSiblingOf = $this;
 			$criteria->locale        = $this->locale;
+			$criteria->status        = null;
+			$criteria->localeEnabled = null;
 			$this->_prevSibling = $criteria->first();
 		}
 
@@ -600,6 +605,8 @@ abstract class BaseElementModel extends BaseModel
 			$criteria = craft()->elements->getCriteria($this->elementType);
 			$criteria->nextSiblingOf = $this;
 			$criteria->locale        = $this->locale;
+			$criteria->status        = null;
+			$criteria->localeEnabled = null;
 			$this->_nextSibling = $criteria->first();
 		}
 
@@ -878,12 +885,12 @@ abstract class BaseElementModel extends BaseModel
 					// Do we have any post data for this field?
 					if (isset($content[$handle]))
 					{
-						$this->_content->$handle = $this->_rawPostContent[$handle] = $content[$handle];
+						$value = $this->_rawPostContent[$handle] = $content[$handle];
 					}
 					// Were any files uploaded for this field?
 					else if (!empty($this->_contentPostLocation) && UploadedFile::getInstancesByName($this->_contentPostLocation.'.'.$handle))
 					{
-						$this->_content->$handle = null;
+						$value = null;
 					}
 					else
 					{
@@ -897,8 +904,11 @@ abstract class BaseElementModel extends BaseModel
 					if ($fieldType)
 					{
 						$fieldType->element = $this;
-						$this->_content->$handle = $fieldType->prepValueFromPost($this->_content->$handle);
+						$value = $fieldType->prepValueFromPost($value);
 					}
+
+					// Now set the prepped value on the ContentModel
+					$this->_content->$handle = $value;
 				}
 			}
 		}
@@ -941,6 +951,51 @@ abstract class BaseElementModel extends BaseModel
 	public function setContentPostLocation($contentPostLocation)
 	{
 		$this->_contentPostLocation = $contentPostLocation;
+	}
+
+	/**
+	 * Returns the prepped content for a given field.
+	 *
+	 * @param string $fieldHandle
+	 *
+	 * @throws Exception
+	 * @return mixed
+	 */
+	public function getFieldValue($fieldHandle)
+	{
+		if (!isset($this->_preppedContent) || !array_key_exists($fieldHandle, $this->_preppedContent))
+		{
+			$field = $this->getFieldByHandle($fieldHandle);
+
+			if (!$field)
+			{
+				throw new Exception(Craft::t('No field exists with the handle “{handle}”', array('handle' => $fieldHandle)));
+			}
+
+			$content = $this->getContent();
+
+			if (isset($content->$fieldHandle))
+			{
+				$value = $content->$fieldHandle;
+			}
+			else
+			{
+				$value = null;
+			}
+
+			// Give the field type a chance to prep the value for use
+			$fieldType = $field->getFieldType();
+
+			if ($fieldType)
+			{
+				$fieldType->element = $this;
+				$value = $fieldType->prepValue($value);
+			}
+
+			$this->_preppedContent[$fieldHandle] = $value;
+		}
+
+		return $this->_preppedContent[$fieldHandle];
 	}
 
 	/**
@@ -1005,17 +1060,21 @@ abstract class BaseElementModel extends BaseModel
 	 */
 	protected function getFieldByHandle($handle)
 	{
-		$contentService = craft()->content;
+		if (!isset($this->_fieldsByHandle) || !array_key_exists($handle, $this->_fieldsByHandle))
+		{
+			$contentService = craft()->content;
 
-		$originalFieldContext = $contentService->fieldContext;
-		$contentService->fieldContext = $this->getFieldContext();
+			$originalFieldContext = $contentService->fieldContext;
+			$contentService->fieldContext = $this->getFieldContext();
 
-		$field = craft()->fields->getFieldByHandle($handle);
+			$this->_fieldsByHandle[$handle] = craft()->fields->getFieldByHandle($handle);
 
-		$contentService->fieldContext = $originalFieldContext;
+			$contentService->fieldContext = $originalFieldContext;
+		}
 
-		return $field;
+		return $this->_fieldsByHandle[$handle];
 	}
+
 
 	/**
 	 * @return array
@@ -1028,8 +1087,8 @@ abstract class BaseElementModel extends BaseModel
 			'archived'      => array(AttributeType::Bool, 'default' => false),
 			'locale'        => array(AttributeType::Locale, 'default' => craft()->i18n->getPrimarySiteLocaleId()),
 			'localeEnabled' => array(AttributeType::Bool, 'default' => true),
-			'slug'          => AttributeType::String,
-			'uri'           => AttributeType::String,
+			'slug'          => array(AttributeType::String, 'label' => 'Slug'),
+			'uri'           => array(AttributeType::String, 'label' => 'URI'),
 			'dateCreated'   => AttributeType::DateTime,
 			'dateUpdated'   => AttributeType::DateTime,
 
@@ -1090,43 +1149,5 @@ abstract class BaseElementModel extends BaseModel
 				return $criteria->first();
 			}
 		}
-	}
-
-	/**
-	 * Returns the prepped content for a given field.
-	 *
-	 * @param FieldModel $field
-	 *
-	 * @return mixed
-	 */
-	private function _getPreppedContentForField(FieldModel $field)
-	{
-		if (!isset($this->_preppedContent) || !array_key_exists($field->handle, $this->_preppedContent))
-		{
-			$content = $this->getContent();
-			$fieldHandle = $field->handle;
-
-			if (isset($content->$fieldHandle))
-			{
-				$value = $content->$fieldHandle;
-			}
-			else
-			{
-				$value = null;
-			}
-
-			// Give the field type a chance to prep the value for use
-			$fieldType = $field->getFieldType();
-
-			if ($fieldType)
-			{
-				$fieldType->element = $this;
-				$value = $fieldType->prepValue($value);
-			}
-
-			$this->_preppedContent[$field->handle] = $value;
-		}
-
-		return $this->_preppedContent[$field->handle];
 	}
 }

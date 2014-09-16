@@ -69,6 +69,14 @@ abstract class BaseEnum
 	/**
 	 * @return array|null
 	 */
+	public static function getConstants()
+	{
+		return static::_getConstants();
+	}
+
+	/**
+	 * @return null
+	 */
 	private static function _getConstants()
 	{
 		// static:: chokes PHP here because PHP sucks.

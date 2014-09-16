@@ -55,6 +55,17 @@ return array(
 	'allowUppercaseInSlug' => false,
 
 	/**
+	 * If this is set, Craft will call Yii’s CApplication->setId method (http://www.yiiframework.com/doc/api/1.1/CApplication#setId-detail) to explicitly
+	 * set an application ID for Craft instead of using it’s own method of generating an ID based on a hash of
+	 * CApplication->getBasePath(). Yii’s default method causes issues with deployment services like Capistrano
+	 * where deploying will destroy any active user sessions.
+	 *
+	 * The value is itself is not important as long as it is very hard to guess and is NOT based on the the absolute path
+	 * of the craft/app folder.
+	 */
+	'appId' => null,
+
+	/**
 	 * If set to true, will automatically log the user in after successful account activation.
 	 */
 	'autoLoginAfterAccountActivation' => false,
@@ -84,6 +95,11 @@ return array(
 	 * 2^(value - 14) seconds.
 	 */
 	'blowfishHashCost' => 13,
+
+	/**
+	 * Whether Craft should cache element queries that fall inside {% cache %} tags.
+	 */
+	'cacheElementQueries' => true,
 
 	/**
 	 * The length of time Craft will keep things cached in craft/storage/runtime/.
@@ -119,6 +135,11 @@ return array(
 	'cpTrigger' => 'admin',
 
 	/**
+	 * The name of CSRF token used for CSRF validation if the 'enableCsrfProtection' is set to true.
+	 */
+	'csrfTokenName' => 'CRAFT_CSRF_TOKEN',
+
+	/**
 	 * Any custom ASCII character mappings.
 	 *
 	 * This array is merged into the default one in StringHelper::getAsciiCharMap().
@@ -126,9 +147,21 @@ return array(
 	'customAsciiCharMappings' => array(),
 
 	/**
+	 * Used to set a custom domain on any cookies that Craft creates. Defaults to an empty string, which leaves it
+	 * up to the browser to determine which domain to use (almost always the current). If you want the cookies to work
+	 * for all subdomains, for example, you could set this to '.domain.com'.
+	 */
+	'defaultCookieDomain' => '',
+
+	/**
+	 * The default permissions Craft will use when creating a file on the file system.
+	 */
+	'defaultFilePermissions' => 0664,
+
+	/**
 	 * The default permissions Craft will use when creating a folder on the file system.
 	 */
-	'defaultFolderPermissions' => 0755,
+	'defaultFolderPermissions' => 0775,
 
 	/**
 	 * The quality level Craft will use when saving JPG and PNG files. Ranges from 0 (worst quality, smallest file) to
@@ -152,6 +185,14 @@ return array(
 	 * Determines whether the system is in Dev Mode or not.
 	 */
 	'devMode' => false,
+
+	/**
+	 * Whether to enable CSRF protection via hidden form inputs for all forms submitted via Craft. Defaults to false,
+	 * for now, for backwards compatibility, but will eventually default to true.
+	 *
+	 * Also, see the 'csrfTokenName' config setting.
+	 */
+	'enableCsrfProtection' => false,
 
 	/**
 	 * Any environment-specific variables that should be swapped out in URL and Path settings.
@@ -178,6 +219,11 @@ return array(
 	 * A comma separated list of file extensions that will be merged into the 'allowedFileExtensions' config setting.
 	 */
 	'extraAllowedFileExtensions' => '',
+
+	/**
+	 * The string to use to separate words when uploading Assets. If set to anything but a string, spaces will be left alone.
+	 */
+	'filenameWordSeparator' => '-',
 
 	/**
 	 * Should transforms be generated before loading the page.
@@ -210,6 +256,14 @@ return array(
 	'isSystemOn' => '',
 
 	/**
+	 * If set to true, the auto-generated slugs for an entry will strip any multi-byte characters (Chinese, Japanese, etc.)
+	 * and attempt to convert any high-ASCII to their low ASCII counterparts (i.e. ñ => n).
+	 *
+	 * Note that this only affects the JavaScript auto-generated slugs and they still can be manually entered in the slug.
+	 */
+	'limitAutoSlugsToAscii' => false,
+
+	/**
 	 * The URI Craft should use for user login.  Note that this only affects front-end site requests.
 	 *
 	 * This can be set to a string or an array with locale IDs used as the keys, if you want to set it on a per-locale
@@ -236,6 +290,11 @@ return array(
 	 * locked.
 	 */
 	'maxInvalidLogins' => 5,
+
+	/**
+	 * The highest number Craft will tack onto a slug in order to make it unique before giving up and throwing an error.
+	 */
+	'maxSlugIncrement' => 100,
 
 	/**
 	 * The maximum upload file size allowed in bytes.
@@ -282,6 +341,22 @@ return array(
 	 * unzipping and updating.
 	 */
 	'phpMaxMemoryLimit' => '256M',
+
+	/**
+	 * The path that users should be redirected to after logging in from the Control Panel.
+	 *
+	 * This setting will also come into effect if the user visits the CP’s Login page (/admin/login)
+	 * or the CP’s root URL (/admin) when they are already logged in.
+	 */
+	'postCpLoginRedirect' => 'dashboard',
+
+	/**
+	 * The path that users should be redirected to after logging in from the front-end site.
+	 *
+	 * This setting will also come into effect if the user visits the Login page (as specified by the loginPath config
+	 * setting) when they are already logged in.
+	 */
+	'postLoginRedirect' => '',
 
 	/**
 	 * The template path segment prefix that should be used to identify "private" templates -- templates that aren't
@@ -447,14 +522,4 @@ return array(
 	 * @see http://www.php.net/manual/en/dateinterval.construct.php
 	 */
 	'verificationCodeDuration' => 'P1D',
-
-	/**
-	 * The permissions Craft will use when creating a new file that must be writable on the file system.
-	 */
-	'writableFilePermissions' => 0777,
-
-	/**
-	 * The permissions Craft will use when creating a new folder that must be writable on the file system.
-	 */
-	'writableFolderPermissions' => 0777,
 );

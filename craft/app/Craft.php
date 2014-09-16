@@ -44,7 +44,6 @@ class Craft extends \Yii
 	 * Tells Craft that it's installed now.
 	 *
 	 * @deprecated Deprecated in 1.3. Use {@link AppBehavior::setIsInstalled() `craft()->setIsInstalled()`} instead.
-	 * @return null
 	 */
 	public static function setIsInstalled()
 	{
@@ -256,14 +255,31 @@ class Craft extends \Yii
 
 	/**
 	 * Displays a variable.
-	 *
-	 * @param mixed $target The variable to be dumped.
+     *
+	 * @param mixed $target    The variable to be dumped.
+	 * @param int   $depth     The maximum depth that the dumper should go into the variable. Defaults to 10.
+	 * @param bool  $highlight Whether the result should be syntax-highlighted. Defaults to true.
 	 *
 	 * @return null
 	 */
-	public static function dump($target)
+	public static function dump($target, $depth = 10, $highlight = true)
 	{
-		\CVarDumper::dump($target, 10, true);
+		\CVarDumper::dump($target, $depth, $highlight);
+	}
+
+	/**
+	 * Displays a variable and ends the request. (“Dump and die”)
+     *
+	 * @param mixed $target    The variable to be dumped.
+	 * @param int   $depth     The maximum depth that the dumper should go into the variable. Defaults to 10.
+	 * @param bool  $highlight Whether the result should be syntax-highlighted. Defaults to true.
+	 *
+	 * @return null
+	 */
+	public static function dd($target, $depth = 10, $highlight = true)
+	{
+		static::dump($target, $depth, $highlight);
+		craft()->end();
 	}
 
 	/**
