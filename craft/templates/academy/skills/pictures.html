@@ -1,0 +1,30 @@
+{% extends "_layout-academy" %}
+{% set title = "Learn creative instructional design skills" %}
+
+{% block content %}
+<div class="row row-top row-inverse">
+  <div class="col-md-8 col-md-offset-2">
+    <div style="text-align: center;">
+      <h2 class="hidden-xs">Creative instructional design skills</h2>
+      <h3 class="visible-xs">Creative instructional design skills</h3>
+      <!--<p class="lead">To communicate and train in the new world of work you&#8217;ll need a whole new set of skills.</p>-->
+    </div>
+  </div>
+</div>
+<div class="row tan">
+  <div class="col-sm-6 col-sm-offset-3">
+    <div style="text-align: center; margin-bottom: 90px; padding-top: 90px;">
+      <h3 style="margin-top: 0px;">Pictures</h3>
+      <p class="lead">About 75% of your brain is dedicated to processing visual information.</p>
+      <div style="margin: 60px 0;"><img src="{{ siteUrl }}ficons/s/picture.svg" alt="picture icon" width="200px" class="img-responsive center-block"></div>
+      <p>Learn how to clarify words and numbers using pictures.</p>
+      <p>Start by sign up for our <a href="{{ siteUrl }}academy/#freeLessons">free weekly lessons</a>.</p>
+
+
+    {% include "includes/_five-icons.html" %}
+
+    </div>
+  </div>
+</div>
+
+{% endblock %}

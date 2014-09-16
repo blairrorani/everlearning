@@ -121,6 +121,28 @@ p > img{
 	padding: 0 15px;
 }
 
+/* list styles */
+
+ul.gridstyle {
+	list-style: none;
+	text-align: center;
+	padding-left: 0 !important;
+	list-style-position: outside;
+}
+
+	ul.gridstyle li {
+		float: left;
+		width: 20%;
+		padding: 0 15px;
+
+	}
+	ul img {
+		min-height: 100px;
+		max-height: 100px;
+		max-width: 100px;
+	}
+
+
 @media (max-width: 767px) {
 	.demo-dialog .flat {
 		width: 100%;
@@ -131,7 +153,15 @@ p > img{
 	}
 	.navbar-lg .navbar-brand {
 	padding-top: 25px !important;
-}
+	}
+	ul.gridstyle li {
+		float: left;
+		width: 50%;
+		margin-bottom: 30px;
+	}
+	ul.gridstyle li.last-gridstyle {
+	width: 100%;
+	}
 }
 
 @media (min-width: 768px) {
@@ -140,3 +170,14 @@ p > img{
 	}
 }
 
+@media (min-width: 992px) and (max-width: 1200px) {
+
+	ul.gridstyle li {
+		float: left;
+		width: 33%;
+	}
+
+}
+/*
+@media (min-width: @screen-md-min) and (max-width: @screen-md-max) { ... }
+@media (min-width: @screen-lg-min) { ... }*/
