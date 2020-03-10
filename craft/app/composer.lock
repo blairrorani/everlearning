@@ -334,14 +334,7 @@
             ],
             "time": "2013-11-09 22:30:54"
         },
-        {
-            "name": "phpmailer/phpmailer",
-            "version": "v5.2.8",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/PHPMailer/PHPMailer.git",
-                "reference": "d3802c597bff8f6c2ccfa3eab2a511aa01b8d68f"
-            },
+        
             "dist": {
                 "type": "zip",
                 "url": "https://api.github.com/repos/PHPMailer/PHPMailer/zipball/d3802c597bff8f6c2ccfa3eab2a511aa01b8d68f",
